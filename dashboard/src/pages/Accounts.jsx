@@ -3,7 +3,7 @@ import {
     Plus, Search, Trash2, Edit3, ChevronLeft, ChevronRight,
     Upload, X, AlertCircle, Users, FolderOpen, Pencil, Check
 } from 'lucide-react'
-import api from '../lib/api'
+import { AccountsService } from '../services/apiService'
 import Select from '../components/Select'
 import { STATUS_MAP, GROUP_COLORS, inputCls } from '../lib/ui'
 import Modal from '../components/Modal'
@@ -117,7 +117,7 @@ export default function Accounts() {
     // Load groups
     const loadGroups = useCallback(async () => {
         try {
-            const res = await api.get('/groups/accounts')
+            const res = await AccountsService.getGroups()
             setGroups(res.data || [])
             setUngroupedCount(res.ungrouped_count || 0)
         } catch { /* offline */ }
@@ -131,7 +131,7 @@ export default function Accounts() {
             if (selectedGroup === '__ungrouped__') params.group_id = 'null'
             else if (selectedGroup !== '__all__') params.group_id = selectedGroup
 
-            const res = await api.get('/accounts', { params })
+            const res = await AccountsService.getAccounts(params)
             setAccounts(res.data)
             setPagination(res.pagination)
         } catch { /* offline */ } finally { setLoading(false) }
@@ -142,10 +142,10 @@ export default function Accounts() {
 
     // Group handlers
     const handleCreateGroup = async (data) => {
-        await api.post('/groups/accounts', data); loadGroups()
+        await AccountsService.createGroup(data); loadGroups()
     }
     const handleUpdateGroup = async (data) => {
-        await api.put(`/groups/accounts/${editingGroup._id}`, data); loadGroups()
+        await AccountsService.updateGroup(editingGroup._id, data); loadGroups()
     }
 
     // Xóa nhóm (có chọn cách xử lý accounts)
@@ -153,7 +153,7 @@ export default function Accounts() {
         if (!deleteGroupTarget) return
         setDeleteGroupLoading(true)
         try {
-            await api.delete(`/groups/accounts/${deleteGroupTarget._id}?deleteAccounts=${deleteGroupMode === 'delete'}`)
+            await AccountsService.deleteGroup(deleteGroupTarget._id, deleteGroupMode === 'delete')
             if (selectedGroup === deleteGroupTarget._id) setSelectedGroup('__all__')
             setDeleteGroupTarget(null)
             loadGroups(); loadAccounts(1)
@@ -166,7 +166,7 @@ export default function Accounts() {
         if (!clearMembersTarget) return
         setClearMembersLoading(true)
         try {
-            const res = await api.delete(`/groups/accounts/${clearMembersTarget._id}/members`)
+            const res = await AccountsService.clearGroupMembers(clearMembersTarget._id)
             alert(`✅ Đã xóa ${res.deleted} tài khoản trong nhóm “${clearMembersTarget.name}”`)
             setClearMembersTarget(null)
             loadGroups(); loadAccounts(1)
@@ -181,13 +181,13 @@ export default function Accounts() {
             let gid = assignForm.group_id
             if (assignForm.mode === 'new') {
                 // Tạo nhóm mới trước
-                const res = await api.post('/groups/accounts', {
+                const res = await AccountsService.createGroup({
                     name: assignForm.name, description: assignForm.description, color: assignForm.color
                 })
                 gid = res.data._id
             }
             if (!gid) { alert('Vui lòng chọn hoặc tạo nhóm'); return }
-            const res = await api.post('/groups/accounts/assign', { group_id: gid, count: assignForm.count || undefined })
+            const res = await AccountsService.assignToGroup({ group_id: gid, count: assignForm.count || undefined })
             alert(`✅ Đã gán ${res.updated} tài khoản vào nhóm`)
             setShowAssign(false)
             setAssignForm({ mode: 'existing', group_id: '', name: '', description: '', color: '#3b82f6', count: '' })
@@ -199,15 +199,15 @@ export default function Accounts() {
     // Account handlers
     const handleDelete = async (id) => {
         if (!confirm('Xoá tài khoản này?')) return
-        await api.delete(`/accounts/${id}`)
+        await AccountsService.deleteAccount(id)
         loadAccounts(pagination.page)
     }
     const handleCreate = async (data) => {
-        await api.post('/accounts', data)
+        await AccountsService.createAccount(data)
         loadAccounts(1); loadGroups()
     }
     const handleUpdate = async (data) => {
-        await api.put(`/accounts/${editing._id}`, data)
+        await AccountsService.updateAccount(editing._id, data)
         loadAccounts(pagination.page); loadGroups()
     }
     const handleImport = async () => {
@@ -219,7 +219,7 @@ export default function Accounts() {
                 return { textnow_user, textnow_pass, hotmail_user, hotmail_pass, status: 'pending' }
             })
             const gid = selectedGroup !== '__all__' && selectedGroup !== '__ungrouped__' ? selectedGroup : undefined
-            const res = await api.post('/accounts/import', { accounts: list, group_id: gid })
+            const res = await AccountsService.importAccounts({ accounts: list, group_id: gid })
             alert(`✅ Đã nhập ${res.inserted} tài khoản`)
             setShowImport(false); setImportText('')
             loadAccounts(1); loadGroups()

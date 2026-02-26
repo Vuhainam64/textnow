@@ -3,7 +3,7 @@ import {
     Plus, Search, Trash2, Edit3, ChevronLeft, ChevronRight,
     AlertCircle, Upload, X, Globe, FolderOpen, Users, Pencil, Check,
 } from 'lucide-react'
-import api from '../lib/api'
+import { ProxiesService } from '../services/apiService'
 import Select from '../components/Select'
 import { STATUS_MAP, GROUP_COLORS, inputCls } from '../lib/ui'
 import Modal from '../components/Modal'
@@ -119,7 +119,7 @@ export default function Proxies() {
 
     const loadGroups = useCallback(async () => {
         try {
-            const res = await api.get('/groups/proxies')
+            const res = await ProxiesService.getGroups()
             setGroups(res.data || [])
             setUngroupedCount(res.ungrouped_count || 0)
         } catch { /* offline */ }
@@ -131,7 +131,7 @@ export default function Proxies() {
             const params = { page, limit: 15, search: search || undefined, status: statusFilter || undefined, type: typeFilter || undefined }
             if (selectedGroup === '__ungrouped__') params.group_id = 'null'
             else if (selectedGroup !== '__all__') params.group_id = selectedGroup
-            const res = await api.get('/proxies', { params })
+            const res = await ProxiesService.getProxies(params)
             setProxies(res.data); setPagination(res.pagination)
         } catch { /* offline */ } finally { setLoading(false) }
     }, [search, statusFilter, typeFilter, selectedGroup])
@@ -140,11 +140,11 @@ export default function Proxies() {
     useEffect(() => { load(1) }, [load])
 
     // Group handlers
-    const handleCreateGroup = async (data) => { await api.post('/groups/proxies', data); loadGroups() }
-    const handleUpdateGroup = async (data) => { await api.put(`/groups/proxies/${editingGroup._id}`, data); loadGroups() }
+    const handleCreateGroup = async (data) => { await ProxiesService.createGroup(data); loadGroups() }
+    const handleUpdateGroup = async (data) => { await ProxiesService.updateGroup(editingGroup._id, data); loadGroups() }
     const handleDeleteGroup = async (g) => {
         if (!confirm(`Xoá nhóm "${g.name}"? Proxy trong nhóm sẽ chuyển về "Không có nhóm".`)) return
-        await api.delete(`/groups/proxies/${g._id}`)
+        await ProxiesService.deleteGroup(g._id)
         if (selectedGroup === g._id) setSelectedGroup('__all__')
         loadGroups()
     }
@@ -152,16 +152,16 @@ export default function Proxies() {
     // Proxy handlers
     const handleDelete = async (id) => {
         if (!confirm('Xoá proxy này?')) return
-        await api.delete(`/proxies/${id}`); load(pagination.page)
+        await ProxiesService.deleteProxy(id); load(pagination.page)
     }
-    const handleCreate = async (data) => { await api.post('/proxies', data); load(1); loadGroups() }
-    const handleUpdate = async (data) => { await api.put(`/proxies/${editing._id}`, data); load(pagination.page); loadGroups() }
+    const handleCreate = async (data) => { await ProxiesService.createProxy(data); load(1); loadGroups() }
+    const handleUpdate = async (data) => { await ProxiesService.updateProxy(editing._id, data); load(pagination.page); loadGroups() }
     const handleImport = async () => {
         if (!importText.trim()) return
         setImportLoading(true)
         try {
             const gid = selectedGroup !== '__all__' && selectedGroup !== '__ungrouped__' ? selectedGroup : undefined
-            const res = await api.post('/proxies/import', { raw: importText, group_id: gid })
+            const res = await ProxiesService.importProxies({ raw: importText, group_id: gid })
             alert(`✅ Đã nhập ${res.inserted} proxy`)
             setShowImport(false); setImportText(''); load(1); loadGroups()
         } catch (e) { alert('Lỗi: ' + e.message) }
@@ -173,7 +173,7 @@ export default function Proxies() {
         if (assignCount < 1 || assignCount > ungroupedCount) return alert('Số lượng không hợp lệ.')
         setAssignLoading(true)
         try {
-            await api.post('/groups/proxies/assign', {
+            await ProxiesService.assignToGroup({
                 targetGroupId: assignTargetGroup === 'new' ? undefined : assignTargetGroup,
                 count: assignCount,
             })

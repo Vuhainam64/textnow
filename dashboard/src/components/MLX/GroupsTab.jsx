@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Folder, RefreshCw, Trash2, X, Edit3, Plus } from 'lucide-react'
-import api from '../../lib/api'
+import { MLXService } from '../../services/apiService'
 import Modal from '../Modal'
 import ConfirmModal from './ConfirmModal'
 import { inputCls } from '../../lib/ui'
@@ -26,7 +26,7 @@ export default function GroupsTab() {
     const fetchFolders = useCallback(async () => {
         setLoading(true)
         try {
-            const res = await api.get('/mlx/folders')
+            const res = await MLXService.getFolders()
             setFolders(res.data || [])
         } catch { /* offline */ } finally { setLoading(false) }
     }, [])
@@ -42,7 +42,7 @@ export default function GroupsTab() {
         if (!editForm.name.trim()) return
         setEditLoading(true)
         try {
-            await api.put('/mlx/folders', {
+            await MLXService.updateFolder({
                 ...editTarget,
                 name: editForm.name.trim(),
                 comment: editForm.comment,
@@ -56,7 +56,7 @@ export default function GroupsTab() {
     }
 
     const doDelete = async () => {
-        await api.delete('/mlx/folders', { data: { ids: [deleteTarget.folder_id] } })
+        await MLXService.deleteFolder([deleteTarget.folder_id])
         showToast(`Đã xoá folder "${deleteTarget.name}"`)
         setDeleteTarget(null)
         fetchFolders()
@@ -66,7 +66,7 @@ export default function GroupsTab() {
         if (!createForm.name.trim()) return
         setCreateLoading(true)
         try {
-            await api.post('/mlx/folders', { name: createForm.name.trim(), comment: createForm.comment })
+            await MLXService.createFolder({ name: createForm.name.trim(), comment: createForm.comment })
             showToast(`Đã tạo folder "${createForm.name.trim()}"`)
             setCreateModal(false)
             setCreateForm({ name: '', comment: '' })
@@ -77,7 +77,7 @@ export default function GroupsTab() {
     }
 
     const doCleanup = async () => {
-        await api.post('/mlx/folders/cleanup', { folder_id: cleanupTarget.folder_id })
+        await MLXService.cleanupFolder(cleanupTarget.folder_id)
         showToast(`Đang xoá profiles trong "${cleanupTarget.name}"...`)
         setCleanupTarget(null)
     }

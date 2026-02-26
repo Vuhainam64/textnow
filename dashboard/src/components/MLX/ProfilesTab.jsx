@@ -3,7 +3,7 @@ import {
     Monitor, RefreshCw, Trash2, Search, Plus,
     CheckSquare, Square, ChevronLeft, ChevronRight
 } from 'lucide-react'
-import api from '../../lib/api'
+import { MLXService } from '../../services/apiService'
 import Select from '../Select'
 import Modal from '../Modal'
 import ConfirmModal from './ConfirmModal'
@@ -35,7 +35,7 @@ export default function ProfilesTab() {
     const fetchProfiles = useCallback(async () => {
         setLoading(true)
         try {
-            const res = await api.post('/mlx/profiles/search', {
+            const res = await MLXService.searchProfiles({
                 offset: (page - 1) * limit,
                 limit,
                 search_text: search,
@@ -57,7 +57,7 @@ export default function ProfilesTab() {
     const doSearch = () => { setSearch(searchInput); setPage(1) }
 
     const handleDelete = async (ids) => {
-        await api.post('/mlx/profiles/remove', { ids })
+        await MLXService.removeProfiles(ids)
         showToast(`Đã xoá ${ids.length} profile`)
         setDeleteTarget(null)
         fetchProfiles()
@@ -87,7 +87,7 @@ export default function ProfilesTab() {
                 username: createForm.proxyUser || undefined,
                 password: createForm.proxyPass || undefined,
             } : null
-            await api.post('/mlx/profiles/create', { name: createForm.name.trim(), proxy })
+            await MLXService.createProfile({ name: createForm.name.trim(), proxy })
             showToast('Tạo profile thành công')
             setCreateModal(false)
             setCreateForm({ name: '', proxyHost: '', proxyPort: '', proxyUser: '', proxyPass: '', proxyType: 'socks5' })

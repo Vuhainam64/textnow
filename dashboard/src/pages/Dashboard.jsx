@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Users, Globe, CheckCircle, AlertCircle, TrendingUp, Activity, Clock, Zap } from 'lucide-react'
-import api from '../lib/api'
+import { DashboardService } from '../services/apiService'
 
 function StatCard({ icon: Icon, label, value, sub, color, gradient }) {
     return (
@@ -49,8 +49,8 @@ export default function Dashboard() {
         const load = async () => {
             try {
                 const [acc, prx] = await Promise.all([
-                    api.get('/accounts/stats'),
-                    api.get('/proxies/stats'),
+                    DashboardService.getAccountStats(),
+                    DashboardService.getProxyStats(),
                 ])
                 setAccountStats(acc.data)
                 setProxyStats(prx.data)
