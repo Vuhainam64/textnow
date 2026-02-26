@@ -1,101 +1,16 @@
 ﻿import { useEffect, useState, useCallback } from 'react'
 import {
     Plus, Search, Trash2, Edit3, ChevronLeft, ChevronRight,
-    Upload, X, AlertCircle, Users, FolderOpen, Pencil,
-    Check, Palette,
+    Upload, X, AlertCircle, Users, FolderOpen, Pencil, Check
 } from 'lucide-react'
 import api from '../lib/api'
 import Select from '../components/Select'
+import { STATUS_MAP, GROUP_COLORS, inputCls } from '../lib/ui'
+import Modal from '../components/Modal'
+import StatusBadge from '../components/StatusBadge'
+import GroupForm from '../components/GroupForm'
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const STATUS_MAP = {
-    active: { label: 'Hoạt động', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', dot: 'bg-emerald-400' },
-    inactive: { label: 'Không kích hoạt', color: 'text-slate-400', bg: 'bg-slate-500/10 border-slate-500/20', dot: 'bg-slate-400' },
-    banned: { label: 'Bị khoá', color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20', dot: 'bg-red-400' },
-    pending: { label: 'Chờ xử lý', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20', dot: 'bg-amber-400' },
-}
 
-const GROUP_COLORS = [
-    '#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444',
-    '#06b6d4', '#ec4899', '#f97316', '#84cc16', '#6366f1',
-]
-
-const inputCls = 'w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 transition-all'
-
-// ─── Shared UI ────────────────────────────────────────────────────────────────
-function StatusBadge({ status }) {
-    const s = STATUS_MAP[status] || STATUS_MAP.pending
-    return (
-        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${s.bg} ${s.color}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-            {s.label}
-        </span>
-    )
-}
-
-function Modal({ title, onClose, children, width = 'max-w-lg' }) {
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <div className={`glass rounded-2xl border border-white/10 w-full ${width} shadow-2xl`}>
-                <div className="flex items-center justify-between p-5 border-b border-white/5">
-                    <h3 className="font-semibold text-white">{title}</h3>
-                    <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-all">
-                        <X size={16} />
-                    </button>
-                </div>
-                <div className="p-5">{children}</div>
-            </div>
-        </div>
-    )
-}
-
-// ─── Group Form Modal ─────────────────────────────────────────────────────────
-function GroupForm({ initial, onSave, onClose }) {
-    const [form, setForm] = useState({ name: initial?.name || '', description: initial?.description || '', color: initial?.color || '#3b82f6' })
-    const [loading, setLoading] = useState(false)
-    const [error, setError] = useState('')
-
-    const submit = async (e) => {
-        e.preventDefault()
-        if (!form.name.trim()) { setError('Tên nhóm là bắt buộc'); return }
-        setLoading(true)
-        try { await onSave(form); onClose() }
-        catch (err) { setError(err.message) }
-        finally { setLoading(false) }
-    }
-
-    return (
-        <form onSubmit={submit} className="space-y-4">
-            {error && <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-xl p-3">{error}</div>}
-            <div>
-                <label className="text-xs text-slate-500 mb-1.5 block font-medium">Tên nhóm *</label>
-                <input autoFocus value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} placeholder="VD: T1, Spam, Main..." />
-            </div>
-            <div>
-                <label className="text-xs text-slate-500 mb-1.5 block font-medium">Mô tả</label>
-                <textarea rows={2} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className={`${inputCls} resize-none`} placeholder="Mô tả mục đích của nhóm..." />
-            </div>
-            <div>
-                <label className="text-xs text-slate-500 mb-1.5 block font-medium">Màu nhóm</label>
-                <div className="flex gap-2 flex-wrap">
-                    {GROUP_COLORS.map(c => (
-                        <button key={c} type="button" onClick={() => setForm(f => ({ ...f, color: c }))}
-                            className="w-7 h-7 rounded-full ring-2 ring-offset-2 ring-offset-slate-900 transition-all flex items-center justify-center"
-                            style={{ backgroundColor: c, ringColor: form.color === c ? c : 'transparent' }}>
-                            {form.color === c && <Check size={12} className="text-white" />}
-                        </button>
-                    ))}
-                </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-1">
-                <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Huỷ</button>
-                <button type="submit" disabled={loading} className="px-5 py-2 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-60 transition-all">
-                    {loading ? 'Đang lưu...' : initial ? 'Lưu thay đổi' : 'Tạo nhóm'}
-                </button>
-            </div>
-        </form>
-    )
-}
 
 // ─── Account Form ─────────────────────────────────────────────────────────────
 function AccountForm({ initial, groups, groupId, onSave, onClose }) {
