@@ -481,7 +481,7 @@ export default function Accounts() {
                     <button onClick={() => setShowGroupForm(true)}
                         className="w-6 h-6 rounded-lg hover:bg-white/10 flex items-center justify-center text-slate-500 hover:text-blue-400 transition-all" title="Tạo nhóm mới">
                         <Plus size={14} />
-                    </button> //
+                    </button>
                 </div>
 
                 <button onClick={() => setSelectedGroup('__all__')}
