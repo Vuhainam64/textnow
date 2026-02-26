@@ -112,6 +112,10 @@ export default function Proxies() {
     const [showImport, setShowImport] = useState(false)
     const [importText, setImportText] = useState('')
     const [importLoading, setImportLoading] = useState(false)
+    const [showAssign, setShowAssign] = useState(false)
+    const [assignTargetGroup, setAssignTargetGroup] = useState('')
+    const [assignCount, setAssignCount] = useState(1)
+    const [assignLoading, setAssignLoading] = useState(false)
 
     const loadGroups = useCallback(async () => {
         try {
@@ -164,6 +168,23 @@ export default function Proxies() {
         finally { setImportLoading(false) }
     }
 
+    const confirmAssign = async () => {
+        if (!assignTargetGroup) return alert('Chưa chọn nhóm đích.')
+        if (assignCount < 1 || assignCount > ungroupedCount) return alert('Số lượng không hợp lệ.')
+        setAssignLoading(true)
+        try {
+            await api.post('/groups/proxies/assign', {
+                targetGroupId: assignTargetGroup === 'new' ? undefined : assignTargetGroup,
+                count: assignCount,
+            })
+            setShowAssign(false)
+            setAssignTargetGroup('')
+            setAssignCount(1)
+            load(pagination.page); loadGroups()
+        } catch (e) { alert('Lỗi: ' + e.message) }
+        finally { setAssignLoading(false) }
+    }
+
     const currentGroup = groups.find(g => g._id === selectedGroup)
 
     return (
@@ -205,6 +226,56 @@ export default function Proxies() {
                 </Modal>
             )}
 
+            {showAssign && (
+                <Modal title="Phân nhóm Proxy" onClose={() => setShowAssign(false)}>
+                    <div className="space-y-4">
+                        <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 flex items-start gap-3">
+                            <AlertCircle size={16} className="text-blue-400 mt-0.5 flex-shrink-0" />
+                            <div>
+                                <h4 className="text-sm font-medium text-slate-200">Đang chọn từ danh sách "Chưa có nhóm"</h4>
+                                <p className="text-xs text-blue-300 mt-0.5">Bạn có {ungroupedCount} proxy đang chờ phân nhóm.</p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="text-xs text-slate-500 mb-1.5 block font-medium">Bạn muốn chuyển đến nhóm nào?</label>
+                            <Select value={assignTargetGroup} onChange={e => setAssignTargetGroup(e.target.value)}>
+                                <option value="" disabled>-- Chọn nhóm đích --</option>
+                                <option value="new" className="text-blue-400 font-medium">+ Tạo nhóm mới cho các proxy này</option>
+                                {groups.map(g => (
+                                    <option key={g._id} value={g._id}>{g.name} ({g.proxy_count} proxy)</option>
+                                ))}
+                            </Select>
+                        </div>
+
+                        <div>
+                            <label className="text-xs text-slate-500 mb-1.5 block font-medium">Số lượng Proxy muốn chuyển</label>
+                            <div className="flex items-center gap-3">
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max={ungroupedCount}
+                                    value={assignCount}
+                                    onChange={e => setAssignCount(Number(e.target.value))}
+                                    className={`${inputCls} w-24 text-center font-medium`}
+                                />
+                                <span className="text-sm text-slate-500">
+                                    / {ungroupedCount} proxy
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-1">
+                            <button onClick={() => setShowAssign(false)} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Huỷ</button>
+                            <button onClick={confirmAssign} disabled={assignLoading}
+                                className="px-5 py-2 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-60 transition-all">
+                                {assignLoading ? 'Đang gán...' : 'Gán vào nhóm'}
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+
             {/* ── SIDEBAR ──────────────────────────────────── */}
             <aside className="w-56 flex-shrink-0 flex flex-col gap-2">
                 <div className="flex items-center justify-between mb-1">
@@ -223,12 +294,20 @@ export default function Proxies() {
                     <span className="text-xs text-slate-500 font-medium">{pagination.total}</span>
                 </button>
 
-                <button onClick={() => setSelectedGroup('__ungrouped__')}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all text-left ${selectedGroup === '__ungrouped__' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}>
+                <div className={`group/ug relative flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all cursor-pointer
+                    ${selectedGroup === '__ungrouped__' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
+                    onClick={() => setSelectedGroup('__ungrouped__')}>
                     <FolderOpen size={15} className="flex-shrink-0 text-slate-500" />
                     <span className="flex-1 truncate">Chưa có nhóm</span>
-                    <span className="text-xs text-slate-500 font-medium">{ungroupedCount}</span>
-                </button>
+                    <span className="text-xs text-slate-500 font-medium group-hover/ug:hidden">{ungroupedCount}</span>
+                    {ungroupedCount > 0 && (
+                        <button onClick={e => { e.stopPropagation(); setShowAssign(true) }}
+                            className="hidden group-hover/ug:flex w-6 h-6 rounded-md hover:bg-blue-500/20 hover:text-blue-400 items-center justify-center transition-all absolute right-2"
+                            title="Phân nhóm">
+                            <Plus size={11} />
+                        </button>
+                    )}
+                </div>
 
                 {groups.length > 0 && <div className="border-t border-white/5 my-1" />}
 
