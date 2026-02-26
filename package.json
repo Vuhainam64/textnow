@@ -1,0 +1,25 @@
+{
+  "name": "textnow",
+  "version": "1.0.0",
+  "description": "Hệ thống quản lý tài khoản TextNow tự động hoá với Multilogin + Playwright",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file=.env src/server.js",
+    "dev": "node --env-file=.env --watch src/server.js",
+    "dashboard": "cd dashboard && npm run dev"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Vuhainam64/textnow.git"
+  },
+  "keywords": [
+    "textnow",
+    "multilogin",
+    "playwright",
+    "mongodb",
+    "automation"
+  ],
+  "author": "",
+  "license": "ISC"
+}
