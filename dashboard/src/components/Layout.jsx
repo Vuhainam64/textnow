@@ -11,6 +11,7 @@ import {
     X,
     Shield,
     Activity, // Add Activity icon for Tasks
+    History,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -19,7 +20,8 @@ const navItems = [
     { to: '/accounts', icon: Users, label: 'Tài khoản' },
     { to: '/proxies', icon: Globe, label: 'Proxy' },
     { to: '/mlx', icon: Shield, label: 'MLX Control' },
-    { to: '/tasks', icon: Activity, label: 'Công việc' }, // New Tasks link
+    { to: '/tasks', icon: Activity, label: 'Công việc' },
+    { to: '/history', icon: History, label: 'Lịch sử' },
 ]
 
 function Sidebar({ collapsed, onToggle }) {
