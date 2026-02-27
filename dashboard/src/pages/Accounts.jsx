@@ -9,6 +9,8 @@ import { STATUS_MAP, GROUP_COLORS, inputCls } from '../lib/ui'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/StatusBadge'
 import GroupForm from '../components/GroupForm'
+import ConfirmModal from '../components/MLX/ConfirmModal'
+import { showToast } from '../components/Toast'
 
 
 
@@ -113,6 +115,7 @@ export default function Accounts() {
     const [showImport, setShowImport] = useState(false)
     const [importText, setImportText] = useState('')
     const [importLoading, setImportLoading] = useState(false)
+    const [deleteAccountTarget, setDeleteAccountTarget] = useState(null)
 
     // Load groups
     const loadGroups = useCallback(async () => {
@@ -155,9 +158,10 @@ export default function Accounts() {
         try {
             await AccountsService.deleteGroup(deleteGroupTarget._id, deleteGroupMode === 'delete')
             if (selectedGroup === deleteGroupTarget._id) setSelectedGroup('__all__')
+            showToast(`Đã xoá nhóm "${deleteGroupTarget.name}"`)
             setDeleteGroupTarget(null)
             loadGroups(); loadAccounts(1)
-        } catch (e) { alert('Lỗi: ' + e.message) }
+        } catch (e) { showToast(e.message, 'error') }
         finally { setDeleteGroupLoading(false) }
     }
 
@@ -167,10 +171,10 @@ export default function Accounts() {
         setClearMembersLoading(true)
         try {
             const res = await AccountsService.clearGroupMembers(clearMembersTarget._id)
-            alert(`✅ Đã xóa ${res.deleted} tài khoản trong nhóm “${clearMembersTarget.name}”`)
+            showToast(`✅ Đã xóa ${res.deleted} tài khoản trong nhóm “${clearMembersTarget.name}”`)
             setClearMembersTarget(null)
             loadGroups(); loadAccounts(1)
-        } catch (e) { alert('Lỗi: ' + e.message) }
+        } catch (e) { showToast(e.message, 'error') }
         finally { setClearMembersLoading(false) }
     }
 
@@ -186,21 +190,24 @@ export default function Accounts() {
                 })
                 gid = res.data._id
             }
-            if (!gid) { alert('Vui lòng chọn hoặc tạo nhóm'); return }
+            if (!gid) { showToast('Vui lòng chọn hoặc tạo nhóm', 'warning'); return }
             const res = await AccountsService.assignToGroup({ group_id: gid, count: assignForm.count || undefined })
-            alert(`✅ Đã gán ${res.updated} tài khoản vào nhóm`)
+            showToast(`✅ Đã gán ${res.updated} tài khoản vào nhóm`)
             setShowAssign(false)
             setAssignForm({ mode: 'existing', group_id: '', name: '', description: '', color: '#3b82f6', count: '' })
             loadGroups(); loadAccounts(1)
-        } catch (e) { alert('Lỗi: ' + e.message) }
+        } catch (e) { showToast(e.message, 'error') }
         finally { setAssignLoading(false) }
     }
 
     // Account handlers
     const handleDelete = async (id) => {
-        if (!confirm('Xoá tài khoản này?')) return
-        await AccountsService.deleteAccount(id)
-        loadAccounts(pagination.page)
+        try {
+            await AccountsService.deleteAccount(id)
+            showToast('Đã xoá tài khoản')
+            loadAccounts(pagination.page)
+        } catch (e) { showToast(e.message, 'error') }
+        setDeleteAccountTarget(null)
     }
     const handleCreate = async (data) => {
         await AccountsService.createAccount(data)
@@ -220,10 +227,10 @@ export default function Accounts() {
             })
             const gid = selectedGroup !== '__all__' && selectedGroup !== '__ungrouped__' ? selectedGroup : undefined
             const res = await AccountsService.importAccounts({ accounts: list, group_id: gid })
-            alert(`✅ Đã nhập ${res.inserted} tài khoản`)
+            showToast(`✅ Đã nhập ${res.inserted} tài khoản`)
             setShowImport(false); setImportText('')
             loadAccounts(1); loadGroups()
-        } catch (e) { alert('Lỗi: ' + e.message) }
+        } catch (e) { showToast(e.message, 'error') }
         finally { setImportLoading(false) }
     }
 
@@ -235,6 +242,15 @@ export default function Accounts() {
         <div className="flex gap-5 h-full">
 
             {/* ── Modals ─────────────────────────────────────── */}
+            {deleteAccountTarget && (
+                <ConfirmModal
+                    title="Xoá tài khoản"
+                    description="Xoá vĩnh viễn tài khoản này? Thao tác không thể hoàn tác."
+                    danger
+                    onConfirm={() => handleDelete(deleteAccountTarget)}
+                    onClose={() => setDeleteAccountTarget(null)}
+                />
+            )}
             {(showGroupForm || editingGroup) && (
                 <Modal title={editingGroup ? 'Sửa nhóm' : 'Tạo nhóm mới'} onClose={() => { setShowGroupForm(false); setEditingGroup(null) }}>
                     <GroupForm initial={editingGroup} onSave={editingGroup ? handleUpdateGroup : handleCreateGroup}
@@ -541,7 +557,7 @@ export default function Accounts() {
                                                             className="w-8 h-8 rounded-lg hover:bg-blue-500/20 hover:text-blue-400 text-slate-500 flex items-center justify-center transition-all">
                                                             <Edit3 size={14} />
                                                         </button>
-                                                        <button onClick={() => handleDelete(acc._id)}
+                                                        <button onClick={() => setDeleteAccountTarget(acc._id)}
                                                             className="w-8 h-8 rounded-lg hover:bg-red-500/20 hover:text-red-400 text-slate-500 flex items-center justify-center transition-all">
                                                             <Trash2 size={14} />
                                                         </button>

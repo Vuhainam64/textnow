@@ -14,13 +14,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, Check } from 'lucide-react'
 
-export default function Select({ value, onChange, children, className = '', placeholder = '', disabled = false }) {
+export default function Select({ value, onChange, children, options: propsOptions, className = '', placeholder = '', disabled = false }) {
     const [open, setOpen] = useState(false)
     const ref = useRef(null)
 
-    // Parse children thành array of { value, label, disabled }
-    const options = []
-    if (children) {
+    // Parse options from props or children
+    let options = []
+    if (propsOptions) {
+        options = propsOptions
+    } else if (children) {
         const arr = Array.isArray(children) ? children.flat() : [children]
         arr.forEach(child => {
             if (!child) return
@@ -32,7 +34,23 @@ export default function Select({ value, onChange, children, className = '', plac
     }
 
     const selected = options.find(o => String(o.value) === String(value))
-    const displayLabel = selected?.label || placeholder || options[0]?.label || ''
+    const displayLabel = selected?.label || placeholder || (options.length > 0 && !value ? options[0].label : '')
+
+    const [placement, setPlacement] = useState('bottom')
+
+    // Tính toán hướng mở (Up/Down) khi mở dropdown
+    useEffect(() => {
+        if (open && ref.current) {
+            const rect = ref.current.getBoundingClientRect()
+            const spaceBelow = window.innerHeight - rect.bottom
+            const spaceAbove = rect.top
+            if (spaceBelow < 250 && spaceAbove > spaceBelow) {
+                setPlacement('top')
+            } else {
+                setPlacement('bottom')
+            }
+        }
+    }, [open])
 
     // Đóng khi click ngoài
     useEffect(() => {
@@ -76,9 +94,13 @@ export default function Select({ value, onChange, children, className = '', plac
 
             {/* Dropdown panel */}
             {open && (
-                <div className="absolute z-50 mt-1.5 w-full min-w-max glass border border-white/10 rounded-xl shadow-2xl overflow-hidden
-                    animate-in fade-in slide-in-from-top-1 duration-150">
-                    <div className="py-1 max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+                <div className={`absolute z-50 w-full min-w-max glass border border-white/10 rounded-xl shadow-2xl overflow-hidden
+                    animate-in fade-in duration-150
+                    ${placement === 'bottom'
+                        ? 'top-full mt-1.5 slide-in-from-top-1'
+                        : 'bottom-full mb-1.5 slide-in-from-bottom-1'
+                    }`}>
+                    <div className="py-1 max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
                         {options.map((opt, i) => {
                             const isSelected = String(opt.value) === String(value)
                             return (

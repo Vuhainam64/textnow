@@ -9,6 +9,8 @@ import { STATUS_MAP, GROUP_COLORS, inputCls } from '../lib/ui'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/StatusBadge'
 import GroupForm from '../components/GroupForm'
+import ConfirmModal from '../components/MLX/ConfirmModal'
+import { showToast } from '../components/Toast'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const TYPE_MAP = {
@@ -112,10 +114,11 @@ export default function Proxies() {
     const [showImport, setShowImport] = useState(false)
     const [importText, setImportText] = useState('')
     const [importLoading, setImportLoading] = useState(false)
+    const [assignForm, setAssignForm] = useState({ mode: 'existing', group_id: '', name: '', description: '', color: '#3b82f6', count: '' })
     const [showAssign, setShowAssign] = useState(false)
-    const [assignTargetGroup, setAssignTargetGroup] = useState('')
-    const [assignCount, setAssignCount] = useState(1)
     const [assignLoading, setAssignLoading] = useState(false)
+    const [deleteTarget, setDeleteTarget] = useState(null)
+    const [deleteProxyTarget, setDeleteProxyTarget] = useState(null)
 
     const loadGroups = useCallback(async () => {
         try {
@@ -142,17 +145,25 @@ export default function Proxies() {
     // Group handlers
     const handleCreateGroup = async (data) => { await ProxiesService.createGroup(data); loadGroups() }
     const handleUpdateGroup = async (data) => { await ProxiesService.updateGroup(editingGroup._id, data); loadGroups() }
-    const handleDeleteGroup = async (g) => {
-        if (!confirm(`Xoá nhóm "${g.name}"? Proxy trong nhóm sẽ chuyển về "Không có nhóm".`)) return
-        await ProxiesService.deleteGroup(g._id)
-        if (selectedGroup === g._id) setSelectedGroup('__all__')
-        loadGroups()
+    const handleDeleteGroup = async () => {
+        if (!deleteTarget) return
+        try {
+            await ProxiesService.deleteGroup(deleteTarget._id)
+            showToast('Đã xoá nhóm proxy')
+            if (selectedGroup === deleteTarget._id) setSelectedGroup('__all__')
+            loadGroups()
+        } catch (e) { showToast(e.message, 'error') }
+        setDeleteTarget(null)
     }
 
     // Proxy handlers
     const handleDelete = async (id) => {
-        if (!confirm('Xoá proxy này?')) return
-        await ProxiesService.deleteProxy(id); load(pagination.page)
+        try {
+            await ProxiesService.deleteProxy(id)
+            showToast('Đã xoá proxy thành công')
+            load(pagination.page)
+        } catch (e) { showToast(e.message, 'error') }
+        setDeleteProxyTarget(null)
     }
     const handleCreate = async (data) => { await ProxiesService.createProxy(data); load(1); loadGroups() }
     const handleUpdate = async (data) => { await ProxiesService.updateProxy(editing._id, data); load(pagination.page); loadGroups() }
@@ -162,26 +173,29 @@ export default function Proxies() {
         try {
             const gid = selectedGroup !== '__all__' && selectedGroup !== '__ungrouped__' ? selectedGroup : undefined
             const res = await ProxiesService.importProxies({ raw: importText, group_id: gid })
-            alert(`✅ Đã nhập ${res.inserted} proxy`)
+            showToast(`✅ Đã nhập ${res.inserted} proxy`)
             setShowImport(false); setImportText(''); load(1); loadGroups()
-        } catch (e) { alert('Lỗi: ' + e.message) }
+        } catch (e) { showToast(e.message, 'error') }
         finally { setImportLoading(false) }
     }
 
     const confirmAssign = async () => {
-        if (!assignTargetGroup) return alert('Chưa chọn nhóm đích.')
-        if (assignCount < 1 || assignCount > ungroupedCount) return alert('Số lượng không hợp lệ.')
         setAssignLoading(true)
         try {
-            await ProxiesService.assignToGroup({
-                targetGroupId: assignTargetGroup === 'new' ? undefined : assignTargetGroup,
-                count: assignCount,
-            })
+            let gid = assignForm.group_id
+            if (assignForm.mode === 'new') {
+                const res = await ProxiesService.createGroup({
+                    name: assignForm.name, description: assignForm.description, color: assignForm.color
+                })
+                gid = res.data._id
+            }
+            if (!gid) { showToast('Vui lòng chọn hoặc tạo nhóm', 'warning'); return }
+            await ProxiesService.assignToGroup({ group_id: gid, count: assignForm.count || undefined })
+            showToast('✅ Phân nhóm thành công')
             setShowAssign(false)
-            setAssignTargetGroup('')
-            setAssignCount(1)
+            setAssignForm({ mode: 'existing', group_id: '', name: '', description: '', color: '#3b82f6', count: '' })
             load(pagination.page); loadGroups()
-        } catch (e) { alert('Lỗi: ' + e.message) }
+        } catch (e) { showToast(e.message, 'error') }
         finally { setAssignLoading(false) }
     }
 
@@ -226,45 +240,78 @@ export default function Proxies() {
                 </Modal>
             )}
 
+            {deleteTarget && (
+                <ConfirmModal
+                    title={`Xoá nhóm "${deleteTarget.name}"`}
+                    description="Xoá nhóm này? Proxy trong nhóm sẽ chuyển về trạng thái 'Chưa có nhóm'. Hành động không thể hoàn tác!"
+                    danger
+                    onConfirm={handleDeleteGroup}
+                    onClose={() => setDeleteTarget(null)}
+                />
+            )}
+
+            {deleteProxyTarget && (
+                <ConfirmModal
+                    title="Xoá Proxy"
+                    description="Xoá proxy này khỏi hệ thống? Hành động không thể hoàn tác!"
+                    danger
+                    onConfirm={() => handleDelete(deleteProxyTarget)}
+                    onClose={() => setDeleteProxyTarget(null)}
+                />
+            )}
+
             {showAssign && (
                 <Modal title="Phân nhóm Proxy" onClose={() => setShowAssign(false)}>
                     <div className="space-y-4">
-                        <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 flex items-start gap-3">
-                            <AlertCircle size={16} className="text-blue-400 mt-0.5 flex-shrink-0" />
+                        <p className="text-sm text-slate-400">Hiện có <span className="text-white font-medium">{ungroupedCount}</span> proxy chưa có nhóm.</p>
+                        <div className="flex gap-2">
+                            {[{ v: 'existing', label: 'Vào nhóm có sẵn' }, { v: 'new', label: 'Tạo nhóm mới' }].map(opt => (
+                                <button key={opt.v} onClick={() => setAssignForm(f => ({ ...f, mode: opt.v }))}
+                                    className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-all
+                                        ${assignForm.mode === opt.v ? 'bg-blue-600/20 border-blue-500/40 text-blue-400' : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-200'}`}>
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                        {assignForm.mode === 'existing' ? (
                             <div>
-                                <h4 className="text-sm font-medium text-slate-200">Đang chọn từ danh sách "Chưa có nhóm"</h4>
-                                <p className="text-xs text-blue-300 mt-0.5">Bạn có {ungroupedCount} proxy đang chờ phân nhóm.</p>
+                                <label className="text-xs text-slate-500 mb-1.5 block font-medium">Chọn nhóm</label>
+                                <Select value={assignForm.group_id} onChange={e => setAssignForm(f => ({ ...f, group_id: e.target.value }))}>
+                                    <option value="">— Chọn nhóm —</option>
+                                    {groups.map(g => <option key={g._id} value={g._id}>{g.name} ({g.proxy_count})</option>)}
+                                </Select>
                             </div>
-                        </div>
-
-                        <div>
-                            <label className="text-xs text-slate-500 mb-1.5 block font-medium">Bạn muốn chuyển đến nhóm nào?</label>
-                            <Select value={assignTargetGroup} onChange={e => setAssignTargetGroup(e.target.value)}>
-                                <option value="" disabled>-- Chọn nhóm đích --</option>
-                                <option value="new" className="text-blue-400 font-medium">+ Tạo nhóm mới cho các proxy này</option>
-                                {groups.map(g => (
-                                    <option key={g._id} value={g._id}>{g.name} ({g.proxy_count} proxy)</option>
-                                ))}
-                            </Select>
-                        </div>
-
-                        <div>
-                            <label className="text-xs text-slate-500 mb-1.5 block font-medium">Số lượng Proxy muốn chuyển</label>
-                            <div className="flex items-center gap-3">
-                                <input
-                                    type="number"
-                                    min="1"
-                                    max={ungroupedCount}
-                                    value={assignCount}
-                                    onChange={e => setAssignCount(Number(e.target.value))}
-                                    className={`${inputCls} w-24 text-center font-medium`}
-                                />
-                                <span className="text-sm text-slate-500">
-                                    / {ungroupedCount} proxy
-                                </span>
+                        ) : (
+                            <div className="space-y-3">
+                                <div>
+                                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">Tên nhóm mới *</label>
+                                    <input value={assignForm.name} onChange={e => setAssignForm(f => ({ ...f, name: e.target.value }))} className={inputCls} placeholder="VD: Proxy Việt Nam..." />
+                                </div>
+                                <div>
+                                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">Mô tả</label>
+                                    <input value={assignForm.description} onChange={e => setAssignForm(f => ({ ...f, description: e.target.value }))} className={inputCls} placeholder="Mô tả nhóm..." />
+                                </div>
+                                <div>
+                                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">Màu nhóm</label>
+                                    <div className="flex gap-2 flex-wrap">
+                                        {GROUP_COLORS.map(c => (
+                                            <button key={c} type="button" onClick={() => setAssignForm(f => ({ ...f, color: c }))}
+                                                className="w-6 h-6 rounded-full flex items-center justify-center ring-2 ring-offset-2 ring-offset-slate-900 transition-all"
+                                                style={{ backgroundColor: c, ringColor: assignForm.color === c ? c : 'transparent' }}>
+                                                {assignForm.color === c && <Check size={10} className="text-white" />}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
+                        )}
+                        <div>
+                            <label className="text-xs text-slate-500 mb-1.5 block font-medium">
+                                Số lượng Proxy <span className="text-slate-600">(bỏ trống = tất cả)</span>
+                            </label>
+                            <input type="number" value={assignForm.count} onChange={e => setAssignForm(f => ({ ...f, count: e.target.value }))}
+                                className={inputCls} placeholder={`Tối đa ${ungroupedCount}`} min="1" max={ungroupedCount} />
                         </div>
-
                         <div className="flex justify-end gap-2 pt-1">
                             <button onClick={() => setShowAssign(false)} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Huỷ</button>
                             <button onClick={confirmAssign} disabled={assignLoading}
@@ -324,9 +371,9 @@ export default function Proxies() {
                                 className="w-6 h-6 rounded-md hover:bg-blue-500/20 hover:text-blue-400 flex items-center justify-center transition-all" title="Sửa nhóm">
                                 <Pencil size={11} />
                             </button>
-                            <button onClick={e => { e.stopPropagation(); handleDeleteGroup(g) }}
+                            <button onClick={e => { e.stopPropagation(); setDeleteTarget(g) }}
                                 className="w-6 h-6 rounded-md hover:bg-red-500/20 hover:text-red-400 flex items-center justify-center transition-all" title="Xoá nhóm">
-                                <X size={11} />
+                                <Trash2 size={11} />
                             </button>
                         </div>
                     </div>
@@ -441,7 +488,7 @@ export default function Proxies() {
                                                             className="w-8 h-8 rounded-lg hover:bg-blue-500/20 hover:text-blue-400 text-slate-500 flex items-center justify-center transition-all">
                                                             <Edit3 size={14} />
                                                         </button>
-                                                        <button onClick={() => handleDelete(prx._id)}
+                                                        <button onClick={() => setDeleteProxyTarget(prx._id)}
                                                             className="w-8 h-8 rounded-lg hover:bg-red-500/20 hover:text-red-400 text-slate-500 flex items-center justify-center transition-all">
                                                             <Trash2 size={14} />
                                                         </button>

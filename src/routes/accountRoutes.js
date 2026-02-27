@@ -14,6 +14,7 @@
  */
 
 import express from 'express';
+import mongoose from 'mongoose';
 import Account from '../models/Account.js';
 
 const router = express.Router();
@@ -60,10 +61,18 @@ router.get('/', async (req, res) => {
 // ─── GET /api/accounts/stats ─────────────────────────────────────────────────
 router.get('/stats', async (req, res) => {
     try {
+        const { group_id } = req.query;
+        const match = {};
+        if (group_id === 'null') match.group_id = null;
+        else if (group_id && mongoose.Types.ObjectId.isValid(group_id)) {
+            match.group_id = new mongoose.Types.ObjectId(group_id);
+        }
+
         const stats = await Account.aggregate([
+            { $match: match },
             { $group: { _id: '$status', count: { $sum: 1 } } },
         ]);
-        const total = await Account.countDocuments();
+        const total = await Account.countDocuments(match);
         res.json({ success: true, data: { stats, total } });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });

@@ -12,7 +12,8 @@ export const AccountsService = {
     createAccount: (data) => api.post('/accounts', data),
     updateAccount: (id, data) => api.put(`/accounts/${id}`, data),
     deleteAccount: (id) => api.delete(`/accounts/${id}`),
-    importAccounts: (data) => api.post('/accounts/import', data)
+    importAccounts: (data) => api.post('/accounts/import', data),
+    getStats: (params) => api.get('/accounts/stats', { params }),
 }
 
 export const ProxiesService = {
@@ -44,4 +45,9 @@ export const MLXService = {
 export const DashboardService = {
     getAccountStats: () => api.get('/accounts/stats'),
     getProxyStats: () => api.get('/proxies/stats'),
+}
+
+export const TasksService = {
+    runTask: (type, config) => api.post('/tasks/run', { type, config }),
+    getStatus: () => api.get('/tasks/status'),
 }

@@ -12,9 +12,9 @@ export default function ConfirmModal({ title, description, danger = false, onCon
         <Modal title={title} onClose={onClose}>
             <div className="space-y-4">
                 {danger && (
-                    <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
-                        <AlertTriangle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
-                        <p className="text-xs text-red-300">{description}</p>
+                    <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/20 rounded-xl p-4 relative z-10">
+                        <AlertTriangle size={20} className="text-red-400 flex-shrink-0" />
+                        <p className="text-xs text-red-300 leading-relaxed font-medium">{description}</p>
                     </div>
                 )}
                 {!danger && <p className="text-sm text-slate-400">{description}</p>}

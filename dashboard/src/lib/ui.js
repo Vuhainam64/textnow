@@ -5,6 +5,8 @@ export const STATUS_MAP = {
     banned: { label: 'Bị khoá', color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20', dot: 'bg-red-400' },
     dead: { label: 'Đã chết', color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20', dot: 'bg-red-400' },
     pending: { label: 'Chờ xử lý', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20', dot: 'bg-amber-400' },
+    "Captcha": { label: 'Lỗi Captcha', color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20', dot: 'bg-orange-400' },
+    "Reset Error": { label: 'Lỗi Reset', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20', dot: 'bg-rose-400' },
 }
 
 export const GROUP_COLORS = [

@@ -10,7 +10,7 @@ export default function Modal({ title, onClose, children, width = 'max-w-lg' }) 
                         <X size={16} />
                     </button>
                 </div>
-                <div className="p-5 max-h-[85vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
+                <div className="p-5 pb-12 max-h-[85vh] overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-slate-700">
                     {children}
                 </div>
             </div>
