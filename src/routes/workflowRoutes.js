@@ -55,4 +55,38 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
+import WorkflowEngine from '../services/workflowEngine.js';
+
+// ... (existing routes)
+
+// Run workflow
+router.post('/:id/run', async (req, res) => {
+    try {
+        const workflow = await Workflow.findById(req.params.id);
+        if (!workflow) return res.status(404).json({ success: false, error: 'Workflow not found' });
+
+        const executionId = await WorkflowEngine.execute(workflow, { testMode: true });
+
+        res.json({
+            success: true,
+            executionId,
+            message: `Đã khởi chạy quy trình "${workflow.name}" thành công!`
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get execution status/logs
+router.get('/execution/:id/logs', (req, res) => {
+    const execution = WorkflowEngine.activeExecutions.get(req.params.id);
+    if (!execution) return res.status(404).json({ success: false, error: 'Execution not found' });
+
+    res.json({
+        success: true,
+        status: execution.status,
+        logs: execution.logs
+    });
+});
+
 export default router;

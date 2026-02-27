@@ -39,7 +39,8 @@ export const MLXService = {
 
     searchProfiles: (data) => api.post('/mlx/profiles/search', data),
     createProfile: (data) => api.post('/mlx/profiles/create', data),
-    removeProfiles: (ids) => api.post('/mlx/profiles/remove', { ids })
+    removeProfiles: (ids) => api.post('/mlx/profiles/remove', { ids }),
+    getAgentStatus: () => api.get('/mlx/agent/status'),
 }
 
 export const DashboardService = {
@@ -58,4 +59,6 @@ export const WorkflowsService = {
     create: (data) => api.post('/workflows', data),
     update: (id, data) => api.put(`/workflows/${id}`, data),
     delete: (id) => api.delete(`/workflows/${id}`),
+    run: (id) => api.post(`/workflows/${id}/run`),
+    getLogs: (execId) => api.get(`/workflows/execution/${execId}/logs`),
 }

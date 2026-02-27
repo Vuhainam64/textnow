@@ -18,6 +18,11 @@ import {
     Binary,
     ArrowLeft,
     Edit3,
+    Terminal,
+    ChevronUp,
+    ChevronDown,
+    X,
+    Loader2
 } from 'lucide-react';
 import { showToast } from '../../../components/Toast';
 import { AccountsService, ProxiesService, WorkflowsService } from '../../../services/apiService';
@@ -40,10 +45,16 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
     const [showEditModal, setShowEditModal] = useState(false);
     const [editData, setEditData] = useState({ name: workflow.name, description: workflow.description || '' });
 
+    // Execution States
+    const [isExecuting, setIsExecuting] = useState(false);
+    const [showLogs, setShowLogs] = useState(false);
+    const [logs, setLogs] = useState([]);
+
     const [accountGroups, setAccountGroups] = useState([]);
     const [proxyGroups, setProxyGroups] = useState([]);
 
     const reactFlowWrapper = useRef(null);
+    const logContainerRef = useRef(null);
 
     useEffect(() => {
         const load = async () => {
@@ -59,15 +70,78 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
         load();
     }, []);
 
-    const handleSave = async () => {
+    useEffect(() => {
+        if (logContainerRef.current) {
+            logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+        }
+    }, [logs]);
+
+    const addLog = (message, type = 'info') => {
+        setLogs(prev => [...prev, {
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            message,
+            type,
+            time: new Date().toLocaleTimeString()
+        }]);
+    };
+
+    const handleSave = async (silent = false) => {
         try {
             await WorkflowsService.update(workflow._id, {
                 nodes,
                 edges
             });
-            showToast('✅ Đã lưu quy trình thành công');
+            if (!silent) showToast('✅ Đã lưu quy trình thành công');
             onUpdate();
-        } catch (e) { showToast(e.message, 'error'); }
+        } catch (e) { if (!silent) showToast(e.message, 'error'); }
+    };
+
+    const handleRun = async () => {
+        try {
+            const sourceNode = nodes.find(n => n.type === 'sourceNode');
+            if (!sourceNode) return showToast('Vui lòng thêm khối "Nguồn dữ liệu" để khởi chạy', 'warning');
+
+            if (!sourceNode.data.config.account_group_id) {
+                return showToast('Vui lòng chọn Nhóm tài khoản trong khối Nguồn dữ liệu', 'warning');
+            }
+
+            setIsExecuting(true);
+            setShowLogs(true);
+            setLogs([]);
+            addLog(`🚀 Bắt đầu khởi chạy quy trình: ${workflow.name}`, 'info');
+
+            // Save first
+            await handleSave(true);
+            addLog(`💾 Đã lưu phiên bản mới nhất...`, 'info');
+
+            const res = await WorkflowsService.run(workflow._id);
+            const executionId = res.data?.executionId || res.executionId;
+
+            if (!executionId) throw new Error('Không nhận được ID thực thi từ server');
+
+            addLog(`✅ Server đã tiếp nhận yêu cầu. ID: ${executionId}`, 'success');
+            addLog(`ℹ️ Chế độ Chạy thử: Chỉ xử lý 1 tài khoản đầu tiên.`, 'info');
+
+            // Polling logs
+            const pollInterval = setInterval(async () => {
+                try {
+                    const logRes = await WorkflowsService.getLogs(executionId);
+                    setLogs(logRes.data.logs || []);
+
+                    if (logRes.data.status === 'completed' || logRes.data.status === 'failed') {
+                        clearInterval(pollInterval);
+                        setIsExecuting(false);
+                    }
+                } catch (e) {
+                    clearInterval(pollInterval);
+                    setIsExecuting(false);
+                }
+            }, 1500);
+
+        } catch (e) {
+            addLog(`❌ Lỗi: ${e.message}`, 'error');
+            setIsExecuting(false);
+        }
     };
 
     const handleUpdateDetails = async () => {
@@ -89,7 +163,7 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
     const onPaneClick = () => setSelectedNode(null);
 
     const addNode = (template) => {
-        const id = `${template.type}_${Date.now()}`;
+        const id = `${template.type}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
         const newNode = {
             id,
             type: template.type,
@@ -98,6 +172,45 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
         };
         setNodes((nds) => nds.concat(newNode));
     };
+
+    const onDragStart = (event, nodeType, template) => {
+        event.dataTransfer.setData('application/reactflow', nodeType);
+        event.dataTransfer.setData('application/template', JSON.stringify(template));
+        event.dataTransfer.effectAllowed = 'move';
+    };
+
+    const onDragOver = useCallback((event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+    }, []);
+
+    const onDrop = useCallback(
+        (event) => {
+            event.preventDefault();
+
+            const type = event.dataTransfer.getData('application/reactflow');
+            const templateStr = event.dataTransfer.getData('application/template');
+
+            if (!type || !templateStr) return;
+
+            const template = JSON.parse(templateStr);
+            const position = reactFlowWrapper.current.getBoundingClientRect();
+
+            const x = event.clientX - position.left;
+            const y = event.clientY - position.top;
+
+            const id = `${type}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+            const newNode = {
+                id,
+                type,
+                position: { x, y },
+                data: template,
+            };
+
+            setNodes((nds) => nds.concat(newNode));
+        },
+        [setNodes]
+    );
 
     const deleteNode = () => {
         if (!selectedNode) return;
@@ -156,11 +269,23 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
-                    <button onClick={handleSave} className="flex items-center gap-2 px-4 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-slate-300 hover:bg-white/10 transition-all">
+                    <button onClick={() => handleSave()} className="flex items-center gap-2 px-4 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-slate-300 hover:bg-white/10 transition-all">
                         <Save size={14} /> Lưu lại
                     </button>
-                    <button className="flex items-center gap-2 px-4 py-1.5 rounded-xl bg-blue-600 text-xs font-bold text-white shadow-lg shadow-blue-500/20 hover:bg-blue-500 transition-all">
-                        <Play size={14} fill="white" /> Chạy thử
+                    <button
+                        onClick={handleRun}
+                        disabled={isExecuting}
+                        className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-bold text-white shadow-lg transition-all 
+                            ${isExecuting ? 'bg-slate-700 cursor-not-allowed' : 'bg-blue-600 shadow-blue-500/20 hover:bg-blue-500'}`}
+                    >
+                        {isExecuting ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} fill="white" />}
+                        {isExecuting ? 'Đang chạy...' : 'Chạy thử'}
+                    </button>
+                    <button
+                        onClick={() => setShowLogs(!showLogs)}
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${showLogs ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 text-slate-400 hover:text-white'}`}
+                    >
+                        <Terminal size={18} />
                     </button>
                 </div>
             </div>
@@ -178,8 +303,12 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
                         {NODE_TEMPLATES.map((tpl, i) => {
                             const Icon = Icons[tpl.icon] || Icons.MousePointer2;
                             return (
-                                <button key={i} onClick={() => addNode(tpl)}
-                                    className="w-full flex items-center gap-3 px-3 py-2 rounded-xl border border-white/5 bg-white/[0.01] hover:bg-white/5 transition-all text-left group">
+                                <button key={i}
+                                    onClick={() => addNode(tpl)}
+                                    draggable
+                                    onDragStart={(event) => onDragStart(event, tpl.type, tpl)}
+                                    className="w-full flex items-center gap-3 px-3 py-2 rounded-xl border border-white/5 bg-white/[0.01] hover:bg-white/5 transition-all text-left group cursor-grab active:cursor-grabbing"
+                                >
                                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${tpl.color} group-hover:scale-110 flex-shrink-0 shadow-lg`}>
                                         <Icon size={16} />
                                     </div>
@@ -199,6 +328,7 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
                         nodes={nodes} edges={edges}
                         onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect}
                         nodeTypes={nodeTypes} onNodeClick={onNodeClick} onPaneClick={onPaneClick}
+                        onDrop={onDrop} onDragOver={onDragOver}
                         fitView className="bg-[#0f1117]"
                         defaultEdgeOptions={{ animated: true, style: { strokeWidth: 3 } }}
                     >
@@ -210,6 +340,46 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
                             nodeColor={n => n.type === 'sourceNode' ? '#10b981' : '#3b82f6'}
                         />
                     </ReactFlow>
+
+                    {/* Console Panel */}
+                    <aside className={`absolute bottom-0 left-0 right-0 z-20 glass border-t border-white/10 transition-all duration-500 ease-in-out ${showLogs ? 'h-64' : 'h-0 opacity-0 pointer-events-none'}`}>
+                        <div className="flex items-center justify-between px-4 h-10 border-b border-white/5 bg-white/[0.02]">
+                            <div className="flex items-center gap-2">
+                                <Terminal size={14} className="text-blue-400" />
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Kết quả chạy thử</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => setLogs([])} className="text-[10px] text-slate-500 hover:text-white transition-colors">Xoá log</button>
+                                <div className="w-px h-3 bg-white/10 mx-1" />
+                                <button onClick={() => setShowLogs(false)} className="text-slate-500 hover:text-white"><X size={14} /></button>
+                            </div>
+                        </div>
+                        <div
+                            ref={logContainerRef}
+                            className="p-4 h-[calc(100%-40px)] overflow-y-auto font-mono text-[11px] space-y-1.5 scrollbar-thin scrollbar-thumb-slate-800"
+                        >
+                            {logs.length === 0 ? (
+                                <div className="h-full flex flex-col items-center justify-center text-slate-700 select-none">
+                                    <Terminal size={32} className="mb-2 opacity-20" />
+                                    <p>Chưa có dữ liệu tiến trình...</p>
+                                </div>
+                            ) : (
+                                logs.map(log => (
+                                    <div key={log.id} className="flex gap-3 animate-in fade-in slide-in-from-left-2 duration-300">
+                                        <span className="text-slate-600 shrink-0">[{log.time}]</span>
+                                        <span className={`
+                                            ${log.type === 'error' ? 'text-red-400' : ''}
+                                            ${log.type === 'success' ? 'text-emerald-400' : ''}
+                                            ${log.type === 'info' ? 'text-blue-400' : ''}
+                                            ${log.type === 'warning' ? 'text-amber-400' : ''}
+                                        `}>
+                                            {log.message}
+                                        </span>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </aside>
                 </div>
 
                 {/* Right Panel - Configuration */}

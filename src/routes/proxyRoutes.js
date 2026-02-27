@@ -115,7 +115,7 @@ router.post('/import', async (req, res) => {
 router.put('/:id', async (req, res) => {
     try {
         const proxy = await Proxy.findByIdAndUpdate(req.params.id, req.body, {
-            new: true,
+            returnDocument: 'after',
             runValidators: true,
         });
         if (!proxy) return res.status(404).json({ success: false, message: 'Không tìm thấy proxy' });

@@ -442,6 +442,25 @@ class MLXService {
         console.log(`[MLX] ✅ Đã xoá tổng cộng ${deletedTotal} profiles`);
         return deletedTotal;
     }
+
+    /**
+     * Kiểm tra trạng thái Agent MLX (Launcher)
+     */
+    async checkAgentStatus() {
+        try {
+            const { launcherV1 } = getConfig();
+            const response = await axios.get(`${launcherV1}/version`, {
+                headers: {
+                    'Authorization': `Bearer ${this.token}`,
+                    'Accept': 'application/json'
+                },
+                timeout: 2000
+            });
+            return response.data?.status?.http_code === 200;
+        } catch (err) {
+            return false;
+        }
+    }
 }
 
 // Singleton - dùng chung toàn bộ app

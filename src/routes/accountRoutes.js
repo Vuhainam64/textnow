@@ -126,7 +126,7 @@ router.post('/import', async (req, res) => {
 router.put('/:id', async (req, res) => {
     try {
         const account = await Account.findByIdAndUpdate(req.params.id, req.body, {
-            new: true,
+            returnDocument: 'after',
             runValidators: true,
         });
         if (!account) return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản' });

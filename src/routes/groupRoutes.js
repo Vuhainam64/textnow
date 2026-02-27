@@ -77,7 +77,7 @@ router.put('/accounts/:id', async (req, res) => {
     try {
         const { name, description, color } = req.body;
         const group = await AccountGroup.findByIdAndUpdate(
-            req.params.id, { name, description, color }, { new: true, runValidators: true }
+            req.params.id, { name, description, color }, { returnDocument: 'after', runValidators: true }
         );
         if (!group) return res.status(404).json({ success: false, message: 'Không tìm thấy nhóm' });
         res.json({ success: true, data: group });
@@ -174,7 +174,7 @@ router.put('/proxies/:id', async (req, res) => {
     try {
         const { name, description, color } = req.body;
         const group = await ProxyGroup.findByIdAndUpdate(
-            req.params.id, { name, description, color }, { new: true, runValidators: true }
+            req.params.id, { name, description, color }, { returnDocument: 'after', runValidators: true }
         );
         if (!group) return res.status(404).json({ success: false, message: 'Không tìm thấy nhóm' });
         res.json({ success: true, data: group });

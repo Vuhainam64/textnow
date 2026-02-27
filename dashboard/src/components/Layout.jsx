@@ -10,10 +10,12 @@ import {
     Menu,
     X,
     Shield,
-    Activity, // Add Activity icon for Tasks
+    Activity,
     History,
+    RefreshCw,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { MLXService } from '../services/apiService'
 
 const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Tổng quan' },
@@ -103,29 +105,79 @@ function Sidebar({ collapsed, onToggle }) {
 }
 
 function Header() {
+    const [agentConnected, setAgentConnected] = useState(false);
+    const [checking, setChecking] = useState(false);
+
+    const checkStatus = async () => {
+        setChecking(true);
+        try {
+            const res = await MLXService.getAgentStatus();
+            // Cấu trúc res từ apiService/axios thường là { data: { success: true, connected: true } }
+            // Hoặc nếu res đã là data qua interceptor thì là { success: true, connected: true }
+            const isConnected = res.data?.connected || res.connected || false;
+            setAgentConnected(isConnected);
+        } catch (e) {
+            setAgentConnected(false);
+        } finally {
+            setChecking(false);
+        }
+    };
+
+    useEffect(() => {
+        checkStatus();
+        const timer = setInterval(checkStatus, 15000); // Check every 15s
+        return () => clearInterval(timer);
+    }, []);
+
+    const handleConnectAgent = () => {
+        window.location.href = 'mlx:///start?port=45001';
+        setTimeout(checkStatus, 3000); // Check again after 3s
+    };
+
     return (
         <header className="h-16 border-b border-white/5 bg-[#161b27]/80 backdrop-blur-xl
                        flex items-center justify-between px-6 sticky top-0 z-30 flex-shrink-0">
             <div>
-                <h1 className="text-sm font-semibold text-slate-200">Hệ thống quản lý tài khoản</h1>
-                <p className="text-xs text-slate-500">Multilogin • Playwright • MongoDB</p>
+                <h1 className="text-sm font-semibold text-slate-200 uppercase tracking-tight">Hệ thống quản lý tài khoản</h1>
+                <p className="text-[10px] text-slate-500 font-medium">Multilogin • Playwright • MongoDB</p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-4">
                 {/* Status badge */}
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 status-dot-active"></span>
-                    <span className="text-xs text-emerald-400 font-medium">Hoạt động</span>
+                <div className="flex items-center gap-3">
+                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${agentConnected
+                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                        : 'bg-red-500/10 border-red-500/20 text-red-400'
+                        }`}>
+                        <div className={`w-2 h-2 rounded-full ${agentConnected ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`}></div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider">
+                            {agentConnected ? 'MLX Agent: Đã kết nối' : 'MLX Agent: Chưa kết nối'}
+                        </span>
+                    </div>
+
+                    {!agentConnected && (
+                        <button
+                            onClick={handleConnectAgent}
+                            className="px-4 py-1.5 rounded-lg bg-blue-600 text-white text-[10px] font-bold uppercase shadow-lg shadow-blue-500/20 hover:bg-blue-500 transition-all flex items-center gap-2"
+                        >
+                            <RefreshCw size={12} className={checking ? 'animate-spin' : ''} />
+                            Kết nối Agent
+                        </button>
+                    )}
                 </div>
 
-                <button className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5
-                           flex items-center justify-center text-slate-400 hover:text-slate-200 transition-all">
-                    <Bell size={16} />
-                </button>
-                <button className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5
-                           flex items-center justify-center text-slate-400 hover:text-slate-200 transition-all">
-                    <Settings size={16} />
-                </button>
+                <div className="h-6 w-px bg-white/5 mx-1" />
+
+                <div className="flex items-center gap-2">
+                    <button className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5
+                               flex items-center justify-center text-slate-400 hover:text-slate-200 transition-all">
+                        <Bell size={16} />
+                    </button>
+                    <button className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5
+                               flex items-center justify-center text-slate-400 hover:text-slate-200 transition-all">
+                        <Settings size={16} />
+                    </button>
+                </div>
             </div>
         </header>
     )

@@ -217,4 +217,17 @@ router.post('/profiles/create', async (req, res) => {
     }
 });
 
+/**
+ * GET /api/mlx/agent/status
+ * Kiểm tra xem Agent MLX đã bật chưa.
+ */
+router.get('/agent/status', async (req, res) => {
+    try {
+        const isConnected = await mlx.checkAgentStatus();
+        res.json({ success: true, connected: isConnected });
+    } catch (err) {
+        res.json({ success: true, connected: false });
+    }
+});
+
 export default router;
