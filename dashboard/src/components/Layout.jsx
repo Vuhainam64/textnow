@@ -19,9 +19,9 @@ const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Tổng quan' },
     { to: '/accounts', icon: Users, label: 'Tài khoản' },
     { to: '/proxies', icon: Globe, label: 'Proxy' },
-    { to: '/mlx', icon: Shield, label: 'MLX Control' },
     { to: '/tasks', icon: Activity, label: 'Công việc' },
     { to: '/history', icon: History, label: 'Lịch sử' },
+    { to: '/automation', icon: Zap, label: 'Tự động hóa' },
 ]
 
 function Sidebar({ collapsed, onToggle }) {

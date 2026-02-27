@@ -28,6 +28,7 @@ import proxyRoutes from './routes/proxyRoutes.js';
 import mlxRoutes from './routes/mlxRoutes.js';
 import groupRoutes from './routes/groupRoutes.js';
 import taskRoutes from './routes/taskRoutes.js';
+import workflowRoutes from './routes/workflowRoutes.js';
 import mlx from './services/mlxService.js';
 
 const app = express();
@@ -44,6 +45,7 @@ app.use('/api/proxies', proxyRoutes);
 app.use('/api/mlx', mlxRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/tasks', taskRoutes);
+app.use('/api/workflows', workflowRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

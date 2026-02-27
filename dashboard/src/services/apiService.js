@@ -51,3 +51,11 @@ export const TasksService = {
     runTask: (type, config) => api.post('/tasks/run', { type, config }),
     getStatus: () => api.get('/tasks/status'),
 }
+
+export const WorkflowsService = {
+    getAll: () => api.get('/workflows'),
+    getOne: (id) => api.get(`/workflows/${id}`),
+    create: (data) => api.post('/workflows', data),
+    update: (id, data) => api.put(`/workflows/${id}`, data),
+    delete: (id) => api.delete(`/workflows/${id}`),
+}
