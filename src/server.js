@@ -22,6 +22,8 @@
 
 import express from 'express';
 import cors from 'cors';
+import { createServer } from 'http';
+import socketService from './services/socketService.js';
 import { connectDB } from './config/database.js';
 import accountRoutes from './routes/accountRoutes.js';
 import proxyRoutes from './routes/proxyRoutes.js';
@@ -29,9 +31,12 @@ import mlxRoutes from './routes/mlxRoutes.js';
 import groupRoutes from './routes/groupRoutes.js';
 import taskRoutes from './routes/taskRoutes.js';
 import workflowRoutes from './routes/workflowRoutes.js';
+import configRoutes from './routes/configRoutes.js';
 import mlx from './services/mlxService.js';
 
 const app = express();
+const httpServer = createServer(app);
+socketService.init(httpServer);
 const PORT = process.env.PORT || 3000;
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
@@ -46,6 +51,7 @@ app.use('/api/mlx', mlxRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/workflows', workflowRoutes);
+app.use('/api/config', configRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -81,7 +87,7 @@ async function bootstrap() {
     }
 
     // 3. Mở server
-    app.listen(PORT, () => {
+    httpServer.listen(PORT, () => {
         console.log(`🚀 Server đang chạy tại http://localhost:${PORT}`);
     });
 }

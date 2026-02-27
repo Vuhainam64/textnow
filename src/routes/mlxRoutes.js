@@ -218,6 +218,45 @@ router.post('/profiles/create', async (req, res) => {
 });
 
 /**
+ * GET /api/mlx/local-profiles
+ * Lấy danh sách profiles đang lưu local.
+ */
+router.get('/local-profiles', async (req, res) => {
+    try {
+        const data = await mlx.getLocalProfiles();
+        res.json({ success: true, data });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+/**
+ * DELETE /api/mlx/local-profiles/all
+ * Dọn dẹp tất cả folder profile local.
+ */
+router.delete('/local-profiles/all', async (req, res) => {
+    try {
+        const count = await mlx.clearLocalProfiles();
+        res.json({ success: true, message: `Đã dọn dẹp ${count} profile local` });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+/**
+ * DELETE /api/mlx/local-profiles/:id
+ * Xoá 1 profile local.
+ */
+router.delete('/local-profiles/:id', async (req, res) => {
+    try {
+        await mlx.deleteLocalProfile(req.params.id);
+        res.json({ success: true, message: `Đã xoá profile local: ${req.params.id}` });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+/**
  * GET /api/mlx/agent/status
  * Kiểm tra xem Agent MLX đã bật chưa.
  */

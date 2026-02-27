@@ -14,6 +14,7 @@ export const AccountsService = {
     deleteAccount: (id) => api.delete(`/accounts/${id}`),
     importAccounts: (data) => api.post('/accounts/import', data),
     getStats: (params) => api.get('/accounts/stats', { params }),
+    deleteAccountsBulk: (params) => api.delete('/accounts/bulk', { params }),
 }
 
 export const ProxiesService = {
@@ -28,6 +29,7 @@ export const ProxiesService = {
     updateProxy: (id, data) => api.put(`/proxies/${id}`, data),
     deleteProxy: (id) => api.delete(`/proxies/${id}`),
     importProxies: (data) => api.post('/proxies/import', data),
+    deleteProxiesBulk: (params) => api.delete('/proxies/bulk', { params }),
 }
 
 export const MLXService = {
@@ -41,6 +43,9 @@ export const MLXService = {
     createProfile: (data) => api.post('/mlx/profiles/create', data),
     removeProfiles: (ids) => api.post('/mlx/profiles/remove', { ids }),
     getAgentStatus: () => api.get('/mlx/agent/status'),
+    getLocalProfiles: () => api.get('/mlx/local-profiles'),
+    deleteLocalProfile: (id) => api.delete(`/mlx/local-profiles/${id}`),
+    clearLocalProfiles: () => api.delete('/mlx/local-profiles/all'),
 }
 
 export const DashboardService = {
@@ -60,5 +65,11 @@ export const WorkflowsService = {
     update: (id, data) => api.put(`/workflows/${id}`, data),
     delete: (id) => api.delete(`/workflows/${id}`),
     run: (id) => api.post(`/workflows/${id}/run`),
+    stop: (execId) => api.post(`/workflows/execution/${execId}/stop`),
     getLogs: (execId) => api.get(`/workflows/execution/${execId}/logs`),
+}
+
+export const ConfigService = {
+    getEnv: () => api.get('/config/env'),
+    updateEnv: (content) => api.post('/config/env', { content }),
 }

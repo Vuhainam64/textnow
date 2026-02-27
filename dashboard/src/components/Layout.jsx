@@ -16,11 +16,13 @@ import {
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { MLXService } from '../services/apiService'
+import SettingsModal from './SettingsModal'
 
 const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Tổng quan' },
     { to: '/accounts', icon: Users, label: 'Tài khoản' },
     { to: '/proxies', icon: Globe, label: 'Proxy' },
+    { to: '/mlx', icon: Shield, label: 'MLX Control' },
     { to: '/tasks', icon: Activity, label: 'Công việc' },
     { to: '/history', icon: History, label: 'Lịch sử' },
     { to: '/automation', icon: Zap, label: 'Tự động hóa' },
@@ -104,7 +106,7 @@ function Sidebar({ collapsed, onToggle }) {
     )
 }
 
-function Header() {
+function Header({ onShowSettings }) {
     const [agentConnected, setAgentConnected] = useState(false);
     const [checking, setChecking] = useState(false);
 
@@ -173,7 +175,9 @@ function Header() {
                                flex items-center justify-center text-slate-400 hover:text-slate-200 transition-all">
                         <Bell size={16} />
                     </button>
-                    <button className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5
+                    <button
+                        onClick={onShowSettings}
+                        className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5
                                flex items-center justify-center text-slate-400 hover:text-slate-200 transition-all">
                         <Settings size={16} />
                     </button>
@@ -185,18 +189,21 @@ function Header() {
 
 export default function Layout() {
     const [collapsed, setCollapsed] = useState(false)
+    const [showSettings, setShowSettings] = useState(false)
 
     return (
         <div className="flex h-screen bg-[#0f1117] overflow-hidden">
             <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
 
             <div className="flex flex-col flex-1 min-w-0">
-                <Header />
+                <Header onShowSettings={() => setShowSettings(true)} />
                 {/* Main content - scrollable */}
-                <main className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent p-6">
+                <main className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
                     <Outlet />
                 </main>
             </div>
+
+            {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
         </div>
     )
 }

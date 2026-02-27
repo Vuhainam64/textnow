@@ -113,12 +113,15 @@ export default function Proxies() {
     const [editing, setEditing] = useState(null)
     const [showImport, setShowImport] = useState(false)
     const [importText, setImportText] = useState('')
+    const [importType, setImportType] = useState('http')
+    const [importStatus, setImportStatus] = useState('active')
     const [importLoading, setImportLoading] = useState(false)
     const [assignForm, setAssignForm] = useState({ mode: 'existing', group_id: '', name: '', description: '', color: '#3b82f6', count: '' })
     const [showAssign, setShowAssign] = useState(false)
     const [assignLoading, setAssignLoading] = useState(false)
     const [deleteTarget, setDeleteTarget] = useState(null)
     const [deleteProxyTarget, setDeleteProxyTarget] = useState(null)
+    const [showDeleteAll, setShowDeleteAll] = useState(false)
 
     const loadGroups = useCallback(async () => {
         try {
@@ -165,6 +168,19 @@ export default function Proxies() {
         } catch (e) { showToast(e.message, 'error') }
         setDeleteProxyTarget(null)
     }
+
+    const handleDeleteAll = async () => {
+        try {
+            const params = { search: search || undefined, status: statusFilter || undefined, type: typeFilter || undefined }
+            if (selectedGroup === '__ungrouped__') params.group_id = 'null'
+            else if (selectedGroup !== '__all__') params.group_id = selectedGroup
+
+            const res = await ProxiesService.deleteProxiesBulk(params)
+            showToast(res.message)
+            load(1); loadGroups()
+        } catch (e) { showToast(e.message, 'error') }
+        setShowDeleteAll(false)
+    }
     const handleCreate = async (data) => { await ProxiesService.createProxy(data); load(1); loadGroups() }
     const handleUpdate = async (data) => { await ProxiesService.updateProxy(editing._id, data); load(pagination.page); loadGroups() }
     const handleImport = async () => {
@@ -172,7 +188,12 @@ export default function Proxies() {
         setImportLoading(true)
         try {
             const gid = selectedGroup !== '__all__' && selectedGroup !== '__ungrouped__' ? selectedGroup : undefined
-            const res = await ProxiesService.importProxies({ raw: importText, group_id: gid })
+            const res = await ProxiesService.importProxies({
+                raw: importText,
+                group_id: gid,
+                type: importType,
+                status: importStatus
+            })
             showToast(`✅ Đã nhập ${res.inserted} proxy`)
             setShowImport(false); setImportText(''); load(1); loadGroups()
         } catch (e) { showToast(e.message, 'error') }
@@ -202,7 +223,7 @@ export default function Proxies() {
     const currentGroup = groups.find(g => g._id === selectedGroup)
 
     return (
-        <div className="flex gap-5 h-full">
+        <div className="p-6 flex gap-5 h-full">
             {/* Modals */}
             {(showGroupForm || editingGroup) && (
                 <Modal title={editingGroup ? 'Sửa nhóm' : 'Tạo nhóm mới'} onClose={() => { setShowGroupForm(false); setEditingGroup(null) }}>
@@ -222,14 +243,34 @@ export default function Proxies() {
             )}
             {showImport && (
                 <Modal title="Nhập hàng loạt proxy" onClose={() => setShowImport(false)}>
-                    <div className="space-y-3">
-                        <p className="text-xs text-slate-500">
-                            Mỗi dòng: <code className="text-blue-400">host:port:username:password</code>
-                            {currentGroup && <span className="ml-2 text-emerald-400">→ sẽ vào nhóm "{currentGroup.name}"</span>}
-                        </p>
-                        <textarea rows={10} value={importText} onChange={e => setImportText(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 resize-none scrollbar-thin scrollbar-thumb-slate-700"
-                            placeholder="192.168.1.1:8080:user:pass&#10;10.0.0.1:3128" />
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-xs text-slate-500 mb-1.5 block font-medium">Loại Proxy</label>
+                                <Select value={importType} onChange={e => setImportType(e.target.value)}>
+                                    <option value="http">HTTP</option>
+                                    <option value="https">HTTPS</option>
+                                    <option value="socks4">SOCKS4</option>
+                                    <option value="socks5">SOCKS5</option>
+                                </Select>
+                            </div>
+                            <div>
+                                <label className="text-xs text-slate-500 mb-1.5 block font-medium">Trạng thái định dạng</label>
+                                <Select value={importStatus} onChange={e => setImportStatus(e.target.value)}>
+                                    <option value="active">Hoạt động (Active)</option>
+                                    <option value="inactive">Chờ (Inactive)</option>
+                                </Select>
+                            </div>
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-xs text-slate-500 block font-medium">Danh sách Proxy *</label>
+                            <p className="text-[10px] text-slate-600">
+                                Định dạng: <code className="text-blue-400">host:port:username:password</code> (mỗi proxy một dòng)
+                            </p>
+                            <textarea rows={8} value={importText} onChange={e => setImportText(e.target.value)}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 resize-none scrollbar-thin scrollbar-thumb-slate-700 font-mono"
+                                placeholder="192.168.1.1:8080:user:pass&#10;10.0.0.1:3128" />
+                        </div>
                         <div className="flex justify-end gap-2">
                             <button onClick={() => setShowImport(false)} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Huỷ</button>
                             <button onClick={handleImport} disabled={importLoading} className="px-5 py-2 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-60 transition-all">
@@ -257,6 +298,16 @@ export default function Proxies() {
                     danger
                     onConfirm={() => handleDelete(deleteProxyTarget)}
                     onClose={() => setDeleteProxyTarget(null)}
+                />
+            )}
+
+            {showDeleteAll && (
+                <ConfirmModal
+                    title="Xoá tất cả Proxy"
+                    description={`Bạn có chắc chắn muốn xoá toàn bộ ${pagination.total} proxy đang hiển thị theo bộ lọc hiện tại không? Hành động này không thể hoàn tác!`}
+                    danger
+                    onConfirm={handleDeleteAll}
+                    onClose={() => setShowDeleteAll(false)}
                 />
             )}
 
@@ -324,7 +375,7 @@ export default function Proxies() {
             )}
 
             {/* ── SIDEBAR ──────────────────────────────────── */}
-            <aside className="w-56 flex-shrink-0 flex flex-col gap-2">
+            <aside className="w-56 flex-shrink-0 flex flex-col gap-2 sticky top-6 h-fit">
                 <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Nhóm</span>
                     <button onClick={() => setShowGroupForm(true)}
@@ -401,6 +452,12 @@ export default function Proxies() {
                             className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-slate-300 bg-white/5 hover:bg-white/10 border border-white/10 transition-all">
                             <Upload size={14} /> Nhập file
                         </button>
+                        {pagination.total > 0 && (
+                            <button onClick={() => setShowDeleteAll(true)}
+                                className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/10 transition-all">
+                                <Trash2 size={14} /> Xoá tất cả
+                            </button>
+                        )}
                         <button onClick={() => setShowAdd(true)}
                             className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20 transition-all">
                             <Plus size={14} /> Thêm proxy

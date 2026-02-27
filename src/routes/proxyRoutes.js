@@ -86,15 +86,19 @@ router.post('/', async (req, res) => {
 // Format nhập: "host:port:user:pass" hoặc mảng object JSON
 router.post('/import', async (req, res) => {
     try {
-        const { proxies, raw, group_id } = req.body;
+        const { proxies, raw, group_id, type = 'http', status = 'active' } = req.body;
         let proxyList = proxies;
 
         if (raw && typeof raw === 'string') {
             proxyList = raw
                 .split('\n').map(l => l.trim()).filter(Boolean)
                 .map(line => {
-                    const [host, port, username, password] = line.split(':');
-                    return { host, port: Number(port), username, password, type: 'http' };
+                    const parts = line.split(':');
+                    const host = parts[0];
+                    const port = parts[1] ? Number(parts[1]) : 80;
+                    const username = parts[2] || '';
+                    const password = parts[3] || '';
+                    return { host, port, username, password, type, status };
                 });
         }
 
@@ -122,6 +126,30 @@ router.put('/:id', async (req, res) => {
         res.json({ success: true, data: proxy });
     } catch (error) {
         res.status(400).json({ success: false, message: error.message });
+    }
+});
+
+// ─── DELETE /api/proxies/bulk ────────────────────────────────────────────────
+router.delete('/bulk', async (req, res) => {
+    try {
+        const { status, type, search, group_id } = req.query;
+        const query = {};
+
+        if (status) query.status = status;
+        if (type) query.type = type;
+        if (group_id === 'null') query.group_id = null;
+        else if (group_id) query.group_id = group_id;
+        if (search) {
+            query.$or = [
+                { host: { $regex: search, $options: 'i' } },
+                { username: { $regex: search, $options: 'i' } },
+            ];
+        }
+
+        const result = await Proxy.deleteMany(query);
+        res.json({ success: true, message: ` Đã xoá ${result.deletedCount} proxy`, deletedCount: result.deletedCount });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 

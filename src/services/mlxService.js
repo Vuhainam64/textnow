@@ -24,6 +24,9 @@
 
 import axios from 'axios';
 import crypto from 'crypto';
+import fs from 'fs/promises';
+import path from 'path';
+import os from 'os';
 
 // ─── Lazy config reader ───────────────────────────────────────────────────────
 // Hàm này đọc env tại thời điểm GỌI (không phải lúc module load)
@@ -37,6 +40,7 @@ function getConfig() {
         launcherV2: process.env.MLX_LAUNCHER_V2 || 'https://launcher.mlx.yt:45001/api/v2',
         groupId: process.env.MLX_GROUP_ID,
         teamId: process.env.MLX_TEAM_ID,
+        localProfilesPath: process.env.MLX_LOCAL_PROFILES_PATH || path.join(os.homedir(), 'mlx', 'profiles'),
     };
 }
 
@@ -214,22 +218,45 @@ class MLXService {
         const { launcherV2, groupId } = getConfig();
         console.log(`[MLX] 🚀 Đang khởi động profile ${profileId}...`);
 
+        // Đôi khi profile mới tạo cần vài giây để đồng bộ xuống Agent local
+        await this._delay(2000);
+
         const url = `${launcherV2}/profile/f/${groupId}/p/${profileId}/start?automation_type=playwright`;
-        const response = await axios.get(url, {
-            headers: {
-                Authorization: `Bearer ${this.token}`,
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-            },
-        });
 
-        if (response.data?.status?.http_code !== 200) {
-            throw new Error(response.data?.status?.message || 'Không thể khởi động profile');
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                const response = await axios.get(url, {
+                    headers: {
+                        Authorization: `Bearer ${this.token}`,
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                    timeout: 30000
+                });
+
+                if (response.data?.status?.http_code !== 200) {
+                    throw new Error(response.data?.status?.message || 'Không thể khởi động profile');
+                }
+
+                const port = response.data.data.port;
+                console.log(`[MLX] ✅ Profile chạy trên port ${port}`);
+                return { port, wsEndpoint: `ws://127.0.0.1:${port}` };
+            } catch (err) {
+                const errorData = err.response?.data;
+                console.error(`[MLX] ❌ Lần thử ${attempt}/3 khởi động profile thất bại:`,
+                    errorData ? JSON.stringify(errorData, null, 2) : err.message);
+
+                if (attempt === 3) {
+                    if (errorData) {
+                        throw new Error(errorData.status?.message || `Lỗi Launcher: ${err.response.status}`);
+                    }
+                    throw err;
+                }
+
+                // Chờ và thử lại (có thể Agent đang bận hoặc chưa sync xong)
+                await this._delay(3000);
+            }
         }
-
-        const port = response.data.data.port;
-        console.log(`[MLX] ✅ Profile chạy trên port ${port}`);
-        return { port, wsEndpoint: `ws://127.0.0.1:${port}` };
     }
 
     /**
@@ -291,9 +318,10 @@ class MLXService {
      * @param {{ type, host, port, username?, password? }|null} proxy
      * @returns {Promise<string>} profileId
      */
-    async createProfile(name, proxy = null) {
+    async createProfile(name, proxy = null, config = {}) {
         const { groupId } = getConfig();
-        console.log(`[MLX] 🛠️ Đang tạo profile "${name}"...`);
+        const landingPage = config.url || '';
+        console.log(`[MLX] 🛠️ Đang tạo profile "${name}" (Landing: ${landingPage || 'default'})...`);
 
         const payload = {
             browser_type: 'mimic',
@@ -319,6 +347,7 @@ class MLXService {
                     ports_masking: 'mask',
                     canvas_noise: 'mask',
                     startup_behavior: 'custom',
+                    landing_page: landingPage,
                 },
                 storage: { is_local: true, save_service_worker: null },
             },
@@ -350,14 +379,117 @@ class MLXService {
      */
     async removeProfile(profileIds) {
         const ids = Array.isArray(profileIds) ? profileIds : [profileIds];
-        console.log(`[MLX] 🗑️ Đang xoá ${ids.length} profile...`);
+        console.log(`[MLX] 🗑️ Đang xoá ${ids.length} profile trên cloud...`);
 
         const response = await this.api.post('/profile/remove', { ids, permanently: true });
         if (response.data?.status?.http_code !== 200) {
             throw new Error(response.data?.status?.message || 'Xoá profile thất bại');
         }
-        console.log(`[MLX] ✅ Đã xoá ${ids.length} profile`);
+        console.log(`[MLX] ✅ Đã xoá ${ids.length} profile trên cloud`);
         return true;
+    }
+
+    /**
+     * Xoá folder profile dưới máy local.
+     * @param {string} profileId
+     */
+    async deleteLocalProfile(profileId) {
+        const { teamId, localProfilesPath } = getConfig();
+        if (!teamId) throw new Error('Cấu hình MLX_TEAM_ID còn thiếu');
+
+        const profilePath = path.join(localProfilesPath, teamId, teamId, profileId);
+
+        console.log(`[MLX] 📂 Đang xoá folder profile local: ${profilePath}`);
+        try {
+            await fs.rm(profilePath, { recursive: true, force: true });
+            console.log(`[MLX] ✅ Đã xoá folder profile local: ${profileId}`);
+            return true;
+        } catch (err) {
+            console.error(`[MLX] ❌ Lỗi khi xoá folder profile local: ${err.message}`);
+            throw err;
+        }
+    }
+
+    /**
+     * Lấy danh sách profiles đang lưu dưới máy local và dung lượng.
+     */
+    async getLocalProfiles() {
+        const { teamId, localProfilesPath } = getConfig();
+        if (!teamId) return [];
+
+        const basePath = path.join(localProfilesPath, teamId, teamId);
+        try {
+            const entries = await fs.readdir(basePath, { withFileTypes: true });
+            const profiles = [];
+
+            for (const entry of entries) {
+                if (entry.isDirectory()) {
+                    const profilePath = path.join(basePath, entry.name);
+                    const size = await this._getDirSize(profilePath);
+                    profiles.push({
+                        id: entry.name,
+                        size: size,
+                        size_formatted: this._formatSize(size),
+                        path: profilePath
+                    });
+                }
+            }
+            return profiles;
+        } catch (err) {
+            console.error(`[MLX] ❌ Lỗi khi quét folder local: ${err.message}`);
+            return [];
+        }
+    }
+
+    /**
+     * Dọn dẹp tất cả folder profile local.
+     */
+    async clearLocalProfiles() {
+        const { teamId, localProfilesPath } = getConfig();
+        if (!teamId) throw new Error('Cấu hình MLX_TEAM_ID còn thiếu');
+
+        const basePath = path.join(localProfilesPath, teamId, teamId);
+        try {
+            const entries = await fs.readdir(basePath, { withFileTypes: true });
+            let deletedCount = 0;
+
+            for (const entry of entries) {
+                if (entry.isDirectory()) {
+                    await fs.rm(path.join(basePath, entry.name), { recursive: true, force: true });
+                    deletedCount++;
+                }
+            }
+            console.log(`[MLX] ✅ Đã dọn dẹp ${deletedCount} folder profile local`);
+            return deletedCount;
+        } catch (err) {
+            console.error(`[MLX] ❌ Lỗi dọn dẹp folder local: ${err.message}`);
+            throw err;
+        }
+    }
+
+    async _getDirSize(dirPath) {
+        let size = 0;
+        try {
+            const files = await fs.readdir(dirPath, { withFileTypes: true });
+            for (const file of files) {
+                const filePath = path.join(dirPath, file.name);
+                if (file.isDirectory()) {
+                    size += await this._getDirSize(filePath);
+                } else {
+                    const stats = await fs.stat(filePath);
+                    size += stats.size;
+                }
+            }
+        } catch (e) { }
+        return size;
+    }
+
+    _formatSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
     // ─── STATUS ───────────────────────────────────────────────────────────────

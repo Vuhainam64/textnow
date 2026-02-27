@@ -7,7 +7,9 @@ import {
     MiniMap,
     useNodesState,
     useEdgesState,
+    reconnectEdge,
 } from '@xyflow/react';
+import { io } from 'socket.io-client';
 import '@xyflow/react/dist/style.css';
 import * as Icons from 'lucide-react';
 import {
@@ -22,7 +24,9 @@ import {
     ChevronUp,
     ChevronDown,
     X,
-    Loader2
+    Loader2,
+    ZapOff,
+    Link2Off
 } from 'lucide-react';
 import { showToast } from '../../../components/Toast';
 import { AccountsService, ProxiesService, WorkflowsService } from '../../../services/apiService';
@@ -44,11 +48,13 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
     const [selectedNode, setSelectedNode] = useState(null);
     const [showEditModal, setShowEditModal] = useState(false);
     const [editData, setEditData] = useState({ name: workflow.name, description: workflow.description || '' });
+    const [selectedEdge, setSelectedEdge] = useState(null);
 
     // Execution States
     const [isExecuting, setIsExecuting] = useState(false);
     const [showLogs, setShowLogs] = useState(false);
     const [logs, setLogs] = useState([]);
+    const [currentExecutionId, setCurrentExecutionId] = useState(null);
 
     const [accountGroups, setAccountGroups] = useState([]);
     const [proxyGroups, setProxyGroups] = useState([]);
@@ -118,29 +124,49 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
             const executionId = res.data?.executionId || res.executionId;
 
             if (!executionId) throw new Error('Không nhận được ID thực thi từ server');
+            setCurrentExecutionId(executionId);
 
             addLog(`✅ Server đã tiếp nhận yêu cầu. ID: ${executionId}`, 'success');
             addLog(`ℹ️ Chế độ Chạy thử: Chỉ xử lý 1 tài khoản đầu tiên.`, 'info');
 
-            // Polling logs
-            const pollInterval = setInterval(async () => {
-                try {
-                    const logRes = await WorkflowsService.getLogs(executionId);
-                    setLogs(logRes.data.logs || []);
+            // Setup WebSocket connection
+            const socket = io('http://localhost:3000'); // TODO: Use env variable for base URL
 
-                    if (logRes.data.status === 'completed' || logRes.data.status === 'failed') {
-                        clearInterval(pollInterval);
-                        setIsExecuting(false);
-                    }
-                } catch (e) {
-                    clearInterval(pollInterval);
+            socket.on('connect', () => {
+                socket.emit('join-execution', executionId);
+                addLog(`📡 Đã kết nối luồng cập nhật trực tiếp.`, 'info');
+            });
+
+            socket.on('workflow-log', (newLog) => {
+                setLogs(prev => [...prev, newLog]);
+            });
+
+            socket.on('workflow-status', (data) => {
+                if (data.status === 'completed' || data.status === 'failed' || data.status === 'stopped') {
                     setIsExecuting(false);
+                    setCurrentExecutionId(null);
+                    socket.disconnect();
                 }
-            }, 1500);
+            });
+
+            socket.on('disconnect', () => {
+                setIsExecuting(false);
+            });
 
         } catch (e) {
             addLog(`❌ Lỗi: ${e.message}`, 'error');
             setIsExecuting(false);
+            setCurrentExecutionId(null);
+        }
+    };
+
+    const handleStop = async () => {
+        if (!currentExecutionId) return;
+        try {
+            await WorkflowsService.stop(currentExecutionId);
+            showToast('Đang gửi yêu cầu dừng...');
+        } catch (e) {
+            showToast(e.message, 'error');
         }
     };
 
@@ -159,8 +185,20 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
         [setEdges]
     );
 
-    const onNodeClick = (_, node) => setSelectedNode(node);
-    const onPaneClick = () => setSelectedNode(null);
+    const onNodeClick = (_, node) => {
+        setSelectedNode(node);
+        setSelectedEdge(null);
+    };
+
+    const onEdgeClick = (_, edge) => {
+        setSelectedEdge(edge);
+        setSelectedNode(null);
+    };
+
+    const onPaneClick = () => {
+        setSelectedNode(null);
+        setSelectedEdge(null);
+    };
 
     const addNode = (template) => {
         const id = `${template.type}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
@@ -219,6 +257,17 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
         setSelectedNode(null);
     };
 
+    const deleteEdge = () => {
+        if (!selectedEdge) return;
+        setEdges((eds) => eds.filter((e) => e.id !== selectedEdge.id));
+        setSelectedEdge(null);
+    };
+
+    const onReconnect = useCallback(
+        (oldEdge, newConnection) => setEdges((els) => reconnectEdge(oldEdge, newConnection, els)),
+        [setEdges]
+    );
+
     const updateNodeConfig = (nodeId, key, value, extraData = {}) => {
         setNodes(nds => nds.map(n => {
             if (n.id === nodeId) {
@@ -250,7 +299,7 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
     };
 
     return (
-        <div className="flex flex-col h-full -m-6 overflow-hidden bg-[#0f1117] animate-in slide-in-from-right duration-500">
+        <div className="flex flex-col h-full overflow-hidden bg-[#0f1117] animate-in slide-in-from-right duration-500">
             {/* Action Bar */}
             <div className="h-14 border-b border-white/5 glass px-4 flex items-center justify-between z-10 shrink-0">
                 <div className="flex items-center gap-4">
@@ -272,15 +321,21 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
                     <button onClick={() => handleSave()} className="flex items-center gap-2 px-4 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-slate-300 hover:bg-white/10 transition-all">
                         <Save size={14} /> Lưu lại
                     </button>
-                    <button
-                        onClick={handleRun}
-                        disabled={isExecuting}
-                        className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-bold text-white shadow-lg transition-all 
-                            ${isExecuting ? 'bg-slate-700 cursor-not-allowed' : 'bg-blue-600 shadow-blue-500/20 hover:bg-blue-500'}`}
-                    >
-                        {isExecuting ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} fill="white" />}
-                        {isExecuting ? 'Đang chạy...' : 'Chạy thử'}
-                    </button>
+                    {isExecuting ? (
+                        <button
+                            onClick={handleStop}
+                            className="flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-red-600 shadow-lg shadow-red-500/20 hover:bg-red-500 transition-all animate-pulse"
+                        >
+                            <Icons.Square size={14} fill="white" /> Dừng
+                        </button>
+                    ) : (
+                        <button
+                            onClick={handleRun}
+                            className="flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-blue-600 shadow-lg shadow-blue-500/20 hover:bg-blue-500 transition-all"
+                        >
+                            <Play size={14} fill="white" /> Chạy thử
+                        </button>
+                    )}
                     <button
                         onClick={() => setShowLogs(!showLogs)}
                         className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${showLogs ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 text-slate-400 hover:text-white'}`}
@@ -328,6 +383,7 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
                         nodes={nodes} edges={edges}
                         onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect}
                         nodeTypes={nodeTypes} onNodeClick={onNodeClick} onPaneClick={onPaneClick}
+                        onEdgeClick={onEdgeClick} onReconnect={onReconnect}
                         onDrop={onDrop} onDragOver={onDragOver}
                         fitView className="bg-[#0f1117]"
                         defaultEdgeOptions={{ animated: true, style: { strokeWidth: 3 } }}
@@ -386,7 +442,7 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
                 {(() => {
                     const activeSelectedNode = selectedNode ? nodes.find(n => n.id === selectedNode.id) : null;
                     return (
-                        <aside className={`w-72 glass border-l border-white/5 p-4 z-10 transition-all duration-300 ${activeSelectedNode ? 'translate-x-0' : 'translate-x-full absolute right-0 scale-95 opacity-0'}`}>
+                        <aside className={`w-72 glass border-l border-white/5 p-4 z-10 transition-all duration-300 ${activeSelectedNode || selectedEdge ? 'translate-x-0' : 'translate-x-full absolute right-0 scale-95 opacity-0'}`}>
                             {activeSelectedNode && (
                                 <div className="space-y-6 text-slate-200">
                                     <div className="flex items-center justify-between">
@@ -460,12 +516,37 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
                                     </div>
                                 </div>
                             )}
-                            {!activeSelectedNode && (
+
+                            {selectedEdge && (
+                                <div className="space-y-6 text-slate-200">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <Icons.Share2 size={16} className="text-purple-400" />
+                                            <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Kết nối</span>
+                                        </div>
+                                        <button onClick={deleteEdge} className="p-1.5 hover:bg-red-500/10 text-slate-600 hover:text-red-500 rounded-lg transition-all">
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+
+                                    <div className="p-4 bg-white/[0.03] border border-white/5 rounded-2xl space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[10px] text-slate-500 font-bold uppercase">Hành động</span>
+                                            <button onClick={deleteEdge} className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20 text-[11px] font-bold transition-all">
+                                                <Link2Off size={13} /> Xoá dây
+                                            </button>
+                                        </div>
+                                        <p className="text-[11px] text-slate-400 italic">Dây này kết nối trình tự thực hiện giữa hai khối lệnh.</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {!activeSelectedNode && !selectedEdge && (
                                 <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-4">
                                     <div className="w-16 h-16 rounded-3xl bg-white/[0.02] border border-white/5 flex items-center justify-center text-slate-700">
                                         <Settings2 size={32} />
                                     </div>
-                                    <p className="text-xs text-slate-500 font-medium">Chọn một khối trên sơ đồ để bắt đầu cấu hình chi tiết</p>
+                                    <p className="text-xs text-slate-500 font-medium">Chọn một khối hoặc dây nối trên sơ đồ để cấu hình</p>
                                 </div>
                             )}
                         </aside>

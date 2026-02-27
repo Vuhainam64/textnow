@@ -77,6 +77,17 @@ router.post('/:id/run', async (req, res) => {
     }
 });
 
+// Stop workflow execution
+router.post('/execution/:id/stop', (req, res) => {
+    const success = WorkflowEngine.stop(req.params.id);
+    if (!success) return res.status(404).json({ success: false, error: 'Không tìm thấy tiến trình đang chạy hoặc tiến trình đã kết thúc.' });
+
+    res.json({
+        success: true,
+        message: 'Đã gửi yêu cầu dừng quy trình.'
+    });
+});
+
 // Get execution status/logs
 router.get('/execution/:id/logs', (req, res) => {
     const execution = WorkflowEngine.activeExecutions.get(req.params.id);

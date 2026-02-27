@@ -136,6 +136,29 @@ router.put('/:id', async (req, res) => {
     }
 });
 
+// ─── DELETE /api/accounts/bulk ──────────────────────────────────────────────
+router.delete('/bulk', async (req, res) => {
+    try {
+        const { status, search, group_id } = req.query;
+        const query = {};
+
+        if (status) query.status = status;
+        if (group_id === 'null') query.group_id = null;
+        else if (group_id) query.group_id = group_id;
+        if (search) {
+            query.$or = [
+                { textnow_user: { $regex: search, $options: 'i' } },
+                { hotmail_user: { $regex: search, $options: 'i' } },
+            ];
+        }
+
+        const result = await Account.deleteMany(query);
+        res.json({ success: true, message: ` Đã xoá ${result.deletedCount} tài khoản`, deletedCount: result.deletedCount });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 // ─── DELETE /api/accounts/:id ────────────────────────────────────────────────
 router.delete('/:id', async (req, res) => {
     try {

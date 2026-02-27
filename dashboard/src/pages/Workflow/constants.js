@@ -20,4 +20,7 @@ export const NODE_TEMPLATES = [
     { type: 'taskNode', label: 'Nhập văn bản', category: 'Tương tác', icon: 'Keyboard', color: 'bg-amber-500/20 text-amber-400', config: { selector: '', value: '' } },
     { type: 'taskNode', label: 'Chờ đợi', category: 'Hệ thống', icon: 'Clock', color: 'bg-slate-500/20 text-slate-400', config: { seconds: 5 } },
     { type: 'taskNode', label: 'Giải Captcha', category: 'Xác thực', icon: 'ShieldAlert', color: 'bg-orange-500/20 text-orange-400', config: { type: 'reCaptcha' } },
+    { type: 'taskNode', label: 'Đóng trình duyệt', category: 'Profile', icon: 'MonitorOff', color: 'bg-rose-500/20 text-rose-400', config: {} },
+    { type: 'taskNode', label: 'Xoá profile', category: 'Profile', icon: 'Trash2', color: 'bg-red-500/20 text-red-400', config: {} },
+    { type: 'taskNode', label: 'Xoá profile local', category: 'Profile', icon: 'FolderX', color: 'bg-orange-600/20 text-orange-400', config: {} },
 ];

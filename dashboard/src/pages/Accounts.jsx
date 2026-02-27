@@ -116,6 +116,8 @@ export default function Accounts() {
     const [importText, setImportText] = useState('')
     const [importLoading, setImportLoading] = useState(false)
     const [deleteAccountTarget, setDeleteAccountTarget] = useState(null)
+    const [stats, setStats] = useState([])
+    const [showDeleteAll, setShowDeleteAll] = useState(false)
 
     // Load groups
     const loadGroups = useCallback(async () => {
@@ -125,6 +127,17 @@ export default function Accounts() {
             setUngroupedCount(res.ungrouped_count || 0)
         } catch { /* offline */ }
     }, [])
+
+    const loadStats = useCallback(async () => {
+        try {
+            const params = {}
+            if (selectedGroup === '__ungrouped__') params.group_id = 'null'
+            else if (selectedGroup !== '__all__') params.group_id = selectedGroup
+
+            const res = await AccountsService.getStats(params)
+            setStats(res.data?.stats || [])
+        } catch { /* offline */ }
+    }, [selectedGroup])
 
     // Load accounts filtered by group
     const loadAccounts = useCallback(async (page = 1) => {
@@ -141,7 +154,7 @@ export default function Accounts() {
     }, [search, statusFilter, selectedGroup])
 
     useEffect(() => { loadGroups() }, [loadGroups])
-    useEffect(() => { loadAccounts(1) }, [loadAccounts])
+    useEffect(() => { loadAccounts(1); loadStats() }, [loadAccounts, loadStats])
 
     // Group handlers
     const handleCreateGroup = async (data) => {
@@ -205,9 +218,22 @@ export default function Accounts() {
         try {
             await AccountsService.deleteAccount(id)
             showToast('Đã xoá tài khoản')
-            loadAccounts(pagination.page)
+            loadAccounts(pagination.page); loadStats()
         } catch (e) { showToast(e.message, 'error') }
         setDeleteAccountTarget(null)
+    }
+
+    const handleDeleteAll = async () => {
+        try {
+            const params = { search: search || undefined, status: statusFilter || undefined }
+            if (selectedGroup === '__ungrouped__') params.group_id = 'null'
+            else if (selectedGroup !== '__all__') params.group_id = selectedGroup
+
+            const res = await AccountsService.deleteAccountsBulk(params)
+            showToast(res.message)
+            loadAccounts(1); loadGroups(); loadStats()
+        } catch (e) { showToast(e.message, 'error') }
+        setShowDeleteAll(false)
     }
     const handleCreate = async (data) => {
         await AccountsService.createAccount(data)
@@ -239,7 +265,7 @@ export default function Accounts() {
     const groupColor = currentGroup?.color || '#3b82f6'
 
     return (
-        <div className="flex gap-5 h-full">
+        <div className="p-6 flex gap-5 h-full">
 
             {/* ── Modals ─────────────────────────────────────── */}
             {deleteAccountTarget && (
@@ -249,6 +275,15 @@ export default function Accounts() {
                     danger
                     onConfirm={() => handleDelete(deleteAccountTarget)}
                     onClose={() => setDeleteAccountTarget(null)}
+                />
+            )}
+            {showDeleteAll && (
+                <ConfirmModal
+                    title="Xoá tất cả tài khoản"
+                    description={`Bạn có chắc chắn muốn xoá toàn bộ ${pagination.total} tài khoản đang hiển thị theo bộ lọc hiện tại không? Hành động này không thể hoàn tác!`}
+                    danger
+                    onConfirm={handleDeleteAll}
+                    onClose={() => setShowDeleteAll(false)}
                 />
             )}
             {(showGroupForm || editingGroup) && (
@@ -406,7 +441,7 @@ export default function Accounts() {
             )}
 
             {/* ── SIDEBAR ──────────────────────────────────── */}
-            <aside className="w-56 flex-shrink-0 flex flex-col gap-2">
+            <aside className="w-56 flex-shrink-0 flex flex-col gap-2 sticky top-6 h-fit">
                 <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Nhóm</span>
                     <button onClick={() => setShowGroupForm(true)}
@@ -478,6 +513,12 @@ export default function Accounts() {
                         <p className="text-sm text-slate-500 mt-0.5">Tổng: <span className="text-slate-300 font-medium">{pagination.total}</span> tài khoản</p>
                     </div>
                     <div className="flex gap-2">
+                        {pagination.total > 0 && (
+                            <button onClick={() => setShowDeleteAll(true)}
+                                className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/10 transition-all">
+                                <Trash2 size={14} /> Xoá tất cả
+                            </button>
+                        )}
                         <button onClick={() => setShowImport(true)}
                             className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-slate-300 bg-white/5 hover:bg-white/10 border border-white/10 transition-all">
                             <Upload size={14} /> Nhập file
@@ -488,6 +529,22 @@ export default function Accounts() {
                         </button>
                     </div>
                 </div>
+
+                {/* Status Stats Summary */}
+                {stats.length > 0 && (
+                    <div className="flex flex-wrap gap-2 animate-in fade-in slide-in-from-top-1 duration-300">
+                        {stats.map(s => {
+                            const config = STATUS_MAP[s._id] || { label: s._id, color: 'text-slate-400 bg-slate-500/10' }
+                            return (
+                                <div key={s._id} className={`px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-2 bg-white/3`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full`} style={{ backgroundColor: config.color.split(' ')[0].replace('text-', '') }} />
+                                    <span className="text-xs font-medium text-slate-300">{config.label}:</span>
+                                    <span className="text-xs font-bold text-white">{s.count}</span>
+                                </div>
+                            )
+                        })}
+                    </div>
+                )}
 
                 <div className="flex flex-col sm:flex-row gap-3">
                     <div className="relative flex-1">

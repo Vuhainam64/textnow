@@ -74,7 +74,7 @@ export default function History() {
     }, [loadHistory]);
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="p-6 space-y-6 animate-in fade-in duration-500">
             {/* Header Stats */}
             <div className="grid grid-cols-4 gap-4">
                 <div className="glass p-4 rounded-2xl border border-white/5">

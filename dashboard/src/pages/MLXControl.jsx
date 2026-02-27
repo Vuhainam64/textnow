@@ -2,18 +2,24 @@ import { useState } from 'react'
 import { Folder, Monitor, Shield } from 'lucide-react'
 import GroupsTab from '../components/MLX/GroupsTab'
 import ProfilesTab from '../components/MLX/ProfilesTab'
+import LocalProfilesTab from '../components/MLX/LocalProfilesTab'
 
 const TABS = [
     { id: 'groups', label: 'Groups', icon: Folder },
     { id: 'profiles', label: 'Profiles', icon: Monitor },
+    { id: 'local', label: 'Local Storage', icon: Shield },
 ]
 
 export default function MLXControl() {
     const [activeTab, setActiveTab] = useState('groups')
-    const Tab = activeTab === 'groups' ? GroupsTab : ProfilesTab
+
+    let Tab;
+    if (activeTab === 'groups') Tab = GroupsTab;
+    else if (activeTab === 'profiles') Tab = ProfilesTab;
+    else Tab = LocalProfilesTab;
 
     return (
-        <div className="space-y-5">
+        <div className="space-y-5 p-6">
             {/* Page Header */}
             <div className="flex items-start justify-between">
                 <div>

@@ -76,7 +76,7 @@ export default function Dashboard() {
     const prxDead = findCount(proxyStats, 'dead')
 
     return (
-        <div className="space-y-6 animate-fade-in">
+        <div className="p-6 space-y-6 animate-fade-in">
             {/* Page title */}
             <div>
                 <h2 className="text-2xl font-bold text-white">Tổng quan hệ thống</h2>

@@ -2,10 +2,24 @@ import Account from '../models/Account.js';
 import Proxy from '../models/Proxy.js';
 import mlx from './mlxService.js';
 import { connectBrowser, getPage } from './browserService.js';
+import socketService from './socketService.js';
 
 class WorkflowEngine {
     constructor() {
         this.activeExecutions = new Map();
+    }
+
+    /**
+     * Dừng một quy trình đang chạy
+     */
+    stop(executionId) {
+        const exec = this.activeExecutions.get(executionId);
+        if (exec && exec.status === 'running') {
+            exec.status = 'stopping';
+            this._log(executionId, `🛑 Đang dừng quy trình theo yêu cầu của người dùng...`, 'warning');
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -40,7 +54,7 @@ class WorkflowEngine {
             const sourceNode = nodes.find(n => n.type === 'sourceNode');
             if (!sourceNode) throw new Error('Không tìm thấy khối Nguồn dữ liệu');
 
-            const { account_group_id, target_statuses } = sourceNode.data.config;
+            const { account_group_id, target_statuses, proxy_group_id } = sourceNode.data.config;
 
             this._log(executionId, `🔍 Đang lấy danh sách tài khoản từ nhóm...`);
             let query = Account.find({
@@ -56,6 +70,8 @@ class WorkflowEngine {
 
             if (accounts.length === 0) {
                 this._log(executionId, `⚠️ Không tìm thấy tài khoản nào phù hợp. Kết thúc.`, 'warning');
+                exec.status = 'completed';
+                socketService.to(executionId).emit('workflow-status', { status: 'completed' });
                 return;
             }
 
@@ -63,12 +79,18 @@ class WorkflowEngine {
 
             // 2. Duyệt qua từng tài khoản
             for (let i = 0; i < accounts.length; i++) {
+                // Kiểm tra xem user có bấm dừng không
+                if (this.activeExecutions.get(executionId)?.status === 'stopping') {
+                    throw new Error('USER_ABORTED');
+                }
+
                 const account = accounts[i];
                 this._log(executionId, `----------------------------------------`);
                 this._log(executionId, `👤 [${i + 1}/${accounts.length}] Đang xử lý: ${account.textnow_user}`);
 
                 let context = {
                     account,
+                    proxy: null,
                     profileId: null,
                     browser: null,
                     context: null,
@@ -76,10 +98,26 @@ class WorkflowEngine {
                 };
 
                 try {
+                    // 2.1. Lấy và xoá proxy ngay lập tức nếu có yêu cầu
+                    if (proxy_group_id) {
+                        const proxy = await Proxy.findOneAndDelete({ group_id: proxy_group_id });
+                        if (proxy) {
+                            context.proxy = proxy;
+                            this._log(executionId, `   + Đã lấy và xoá proxy: ${proxy.host}:${proxy.port}`);
+                        } else {
+                            this._log(executionId, `   ⚠️ Hết proxy trong nhóm. Tiếp tục không dùng proxy.`, 'warning');
+                        }
+                    }
+
                     // 3. Tìm các khối tiếp theo từ Source dựa trên Edges
                     let currentNodeId = sourceNode.id;
 
                     while (true) {
+                        // Kiểm tra dừng giữa các khối
+                        if (this.activeExecutions.get(executionId)?.status === 'stopping') {
+                            throw new Error('USER_ABORTED');
+                        }
+
                         const edge = edges.find(e => e.source === currentNodeId);
                         if (!edge) break; // Hết quy trình cho tài khoản này
 
@@ -92,23 +130,27 @@ class WorkflowEngine {
 
                     this._log(executionId, `✅ Hoàn thành quy trình cho ${account.textnow_user}`, 'success');
                 } catch (nodeErr) {
+                    if (nodeErr.message === 'USER_ABORTED') throw nodeErr;
                     this._log(executionId, `❌ Lỗi tại tài khoản ${account.textnow_user}: ${nodeErr.message}`, 'error');
                 } finally {
-                    // Cleanup: Đóng trình duyệt sau khi xong
-                    if (context.browser) {
-                        await context.browser.close().catch(() => { });
-                        await mlx.stopProfile(context.profileId).catch(() => { });
-                        this._log(executionId, `🔌 Đã đóng trình duyệt & profile.`);
-                    }
+                    this._log(executionId, `ℹ️ Quy trình tài khoản kết thúc. Trình duyệt được giữ nguyên.`);
                 }
             }
 
             this._log(executionId, `✨ TẤT CẢ HOÀN TẤT ✨`, 'success');
             exec.status = 'completed';
+            socketService.to(executionId).emit('workflow-status', { status: 'completed' });
 
         } catch (err) {
-            this._log(executionId, `🚨 Lỗi hệ thống: ${err.message}`, 'error');
-            exec.status = 'failed';
+            if (err.message === 'USER_ABORTED') {
+                this._log(executionId, `🛑 Đã dừng quy trình thành công.`, 'warning');
+                exec.status = 'stopped';
+                socketService.to(executionId).emit('workflow-status', { status: 'stopped' });
+            } else {
+                this._log(executionId, `🚨 Lỗi hệ thống: ${err.message}`, 'error');
+                exec.status = 'failed';
+                socketService.to(executionId).emit('workflow-status', { status: 'failed' });
+            }
         }
     }
 
@@ -123,8 +165,14 @@ class WorkflowEngine {
             case 'Tạo profile mới': {
                 // Giả định tạo trên MLX
                 const profileName = `${context.account.textnow_user}_${Date.now()}`;
-                context.profileId = await mlx.createProfile(profileName);
+                context.profileId = await mlx.createProfile(profileName, context.proxy, config);
                 this._log(executionId, `   + Đã tạo MLX Profile: ${context.profileId}`);
+                if (config.url) {
+                    this._log(executionId, `   + Landing Page: ${config.url}`);
+                }
+                if (context.proxy) {
+                    this._log(executionId, `   + Đã gán Proxy: ${context.proxy.host}:${context.proxy.port}`);
+                }
                 break;
             }
 
@@ -171,7 +219,40 @@ class WorkflowEngine {
             case 'Chờ đợi': {
                 const ms = (parseInt(config.seconds) || 5) * 1000;
                 this._log(executionId, `   + Chờ ${config.seconds} giây...`);
-                await new Promise(r => setTimeout(r, ms));
+
+                const startWait = Date.now();
+                while (Date.now() - startWait < ms) {
+                    if (this.activeExecutions.get(executionId)?.status === 'stopping') {
+                        throw new Error('USER_ABORTED');
+                    }
+                    await new Promise(r => setTimeout(r, 500));
+                }
+                break;
+            }
+
+            case 'Đóng trình duyệt': {
+                if (context.browser) {
+                    await context.browser.close().catch(() => { });
+                    context.browser = null;
+                }
+                if (context.profileId) {
+                    await mlx.stopProfile(context.profileId).catch(() => { });
+                    this._log(executionId, `   + Đã đóng trình duyệt & dừng profile: ${context.profileId}`);
+                }
+                break;
+            }
+
+            case 'Xoá profile': {
+                if (!context.profileId) throw new Error('Cần profileId để xoá profile');
+                await mlx.removeProfile(context.profileId);
+                this._log(executionId, `   + Đã xoá profile vĩnh viễn trên cloud.`);
+                break;
+            }
+
+            case 'Xoá profile local': {
+                if (!context.profileId) throw new Error('Cần profileId để xoá folder local');
+                await mlx.deleteLocalProfile(context.profileId);
+                this._log(executionId, `   + Đã xoá folder profile tại đường dẫn local.`);
                 break;
             }
 
@@ -191,6 +272,10 @@ class WorkflowEngine {
         };
 
         exec.logs.push(logEntry);
+
+        // Emit via socket
+        socketService.to(executionId).emit('workflow-log', logEntry);
+
         console.log(`[Engine][${executionId}] ${message}`);
     }
 }

@@ -127,7 +127,7 @@ export default function Tasks() {
     }
 
     return (
-        <div className="flex gap-6 h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="p-6 flex gap-6 h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* --- TASK LIST SIDEBAR --- */}
             <aside className="w-72 flex-shrink-0 space-y-4">
                 <div className="flex items-center gap-2 px-1">
