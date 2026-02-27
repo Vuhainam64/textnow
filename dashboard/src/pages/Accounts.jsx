@@ -68,6 +68,9 @@ function AccountForm({ initial, groups, groupId, onSave, onClose }) {
                         <option value="active">Hoạt động</option>
                         <option value="inactive">Không kích hoạt</option>
                         <option value="banned">Bị khoá</option>
+                        <option value="die_mail">Die Mail</option>
+                        <option value="no_mail">No Mail</option>
+                        <option value="Reset Error">Lỗi Reset</option>
                     </Select>
                 </div>
                 <div>

@@ -65,7 +65,26 @@ router.post('/:id/run', async (req, res) => {
         const workflow = await Workflow.findById(req.params.id);
         if (!workflow) return res.status(404).json({ success: false, error: 'Workflow not found' });
 
-        const executionId = await WorkflowEngine.execute(workflow, { testMode: true });
+        // Runtime config from dashboard
+        const {
+            account_group_id,
+            proxy_group_id = null,
+            target_statuses = ['active'],
+            new_password = '',
+            limit,          // số acc muốn chạy, undefined/'' = tất cả
+            threads = 1,
+            startup_delay = 0,
+        } = req.body;
+
+        const executionId = await WorkflowEngine.execute(workflow, {
+            account_group_id,
+            proxy_group_id,
+            target_statuses,
+            new_password,
+            limit: limit ? parseInt(limit) : null,
+            threads: parseInt(threads) || 1,
+            startup_delay: parseInt(startup_delay) || 0,
+        });
 
         res.json({
             success: true,
@@ -75,6 +94,26 @@ router.post('/:id/run', async (req, res) => {
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
+});
+
+// List all executions (active + recent)
+router.get('/executions/all', (req, res) => {
+    const list = [];
+    for (const [id, exec] of WorkflowEngine.activeExecutions.entries()) {
+        list.push({
+            executionId: id,
+            workflowName: exec.workflow?.name || '—',
+            workflowId: exec.workflow?._id,
+            status: exec.status,
+            started_at: exec.started_at,
+            ended_at: exec.ended_at,
+            options: exec.options,
+            logCount: exec.logs?.length || 0,
+        });
+    }
+    // Mới nhất lên đầu
+    list.sort((a, b) => new Date(b.started_at) - new Date(a.started_at));
+    res.json({ success: true, data: list });
 });
 
 // Stop workflow execution
@@ -96,7 +135,10 @@ router.get('/execution/:id/logs', (req, res) => {
     res.json({
         success: true,
         status: execution.status,
-        logs: execution.logs
+        logs: execution.logs,
+        threads: execution.threads || {},
+        started_at: execution.started_at,
+        ended_at: execution.ended_at,
     });
 });
 

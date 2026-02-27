@@ -26,6 +26,8 @@
     "axios": "^1.13.5",
     "cors": "^2.8.6",
     "express": "^5.2.1",
+    "imap": "^0.8.19",
+    "mailparser": "^3.9.3",
     "mongoose": "^9.2.3",
     "playwright": "^1.58.2",
     "socket.io": "^4.8.3"

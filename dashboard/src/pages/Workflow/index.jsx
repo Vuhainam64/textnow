@@ -3,8 +3,30 @@ import { WorkflowsService } from '../../services/apiService';
 import WorkflowList from './components/WorkflowList';
 import WorkflowEditor from './components/WorkflowEditor';
 
-export default function WorkflowBuilder() {
-    const [view, setView] = useState('list'); // 'list' | 'editor'
+// WorkflowBuilder can be used:
+// 1. Standalone via /automation route (shows WorkflowList + Editor)
+// 2. Embedded from Tasks.jsx with _override props to jump straight to editor
+export default function WorkflowBuilder({
+    _overrideWorkflow,
+    _overrideOnBack,
+    _overrideOnUpdate,
+}) {
+    // If called with override props, render editor directly
+    if (_overrideWorkflow) {
+        return (
+            <WorkflowEditor
+                workflow={_overrideWorkflow}
+                onBack={_overrideOnBack || (() => { })}
+                onUpdate={_overrideOnUpdate || (() => { })}
+            />
+        );
+    }
+
+    return <WorkflowBuilderStandalone />;
+}
+
+function WorkflowBuilderStandalone() {
+    const [view, setView] = useState('list');
     const [workflows, setWorkflows] = useState([]);
     const [loading, setLoading] = useState(true);
     const [currentWorkflow, setCurrentWorkflow] = useState(null);
@@ -21,30 +43,16 @@ export default function WorkflowBuilder() {
         }
     }, []);
 
-    useEffect(() => {
-        loadWorkflows();
-    }, [loadWorkflows]);
+    useEffect(() => { loadWorkflows(); }, [loadWorkflows]);
 
-    const handleEdit = (workflow) => {
-        setCurrentWorkflow(workflow);
-        setView('editor');
-    };
-
-    const handleCreate = (newWorkflow) => {
-        setCurrentWorkflow(newWorkflow);
-        setView('editor');
-        loadWorkflows();
-    };
+    const handleEdit = (workflow) => { setCurrentWorkflow(workflow); setView('editor'); };
+    const handleCreate = (newWorkflow) => { setCurrentWorkflow(newWorkflow); setView('editor'); loadWorkflows(); };
 
     if (view === 'editor' && currentWorkflow) {
         return (
             <WorkflowEditor
                 workflow={currentWorkflow}
-                onBack={() => {
-                    setView('list');
-                    setCurrentWorkflow(null);
-                    loadWorkflows();
-                }}
+                onBack={() => { setView('list'); setCurrentWorkflow(null); loadWorkflows(); }}
                 onUpdate={loadWorkflows}
             />
         );

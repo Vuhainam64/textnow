@@ -64,9 +64,10 @@ export const WorkflowsService = {
     create: (data) => api.post('/workflows', data),
     update: (id, data) => api.put(`/workflows/${id}`, data),
     delete: (id) => api.delete(`/workflows/${id}`),
-    run: (id) => api.post(`/workflows/${id}/run`),
+    run: (id, runConfig = {}) => api.post(`/workflows/${id}/run`, runConfig),
     stop: (execId) => api.post(`/workflows/execution/${execId}/stop`),
     getLogs: (execId) => api.get(`/workflows/execution/${execId}/logs`),
+    getAllExecutions: () => api.get('/workflows/executions/all'),
 }
 
 export const ConfigService = {

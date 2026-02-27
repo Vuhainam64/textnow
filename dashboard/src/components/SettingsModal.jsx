@@ -56,7 +56,7 @@ export default function SettingsModal({ onClose }) {
                     <div className="relative group">
                         <textarea
                             spellCheck={false}
-                            className="w-full h-80 bg-[#0f1117] border border-white/10 rounded-xl p-4 font-mono text-sm text-slate-300 focus:outline-none focus:border-blue-500/50 transition-all resize-none scrollbar-thin scrollbar-thumb-slate-800"
+                            className="w-full h-80 bg-[#0f1117] border border-white/10 rounded-xl p-4 font-mono text-sm text-slate-300 focus:outline-none focus:border-blue-500/50 transition-all resize-none scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent"
                             value={content}
                             onChange={(e) => setContent(e.target.value)}
                             placeholder="# Biến môi trường..."

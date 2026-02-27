@@ -4,8 +4,14 @@ import { CheckCircle2, AlertCircle, XCircle, Info, X } from 'lucide-react'
 // Singleton-like state management for Toast
 let toastRef = null
 
+// Strip leading emoji / icon characters from message
+const stripEmoji = (msg) =>
+    typeof msg === 'string'
+        ? msg.replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F000}-\u{1FFFF}✅❌⚠️🔍🛑🚨✨🔄👤ℹ️➕➖✔️\s]+/u, '').trim()
+        : msg;
+
 export const showToast = (message, type = 'success') => {
-    if (toastRef) toastRef(message, type)
+    if (toastRef) toastRef(stripEmoji(message), type)
 }
 
 export default function Toast() {

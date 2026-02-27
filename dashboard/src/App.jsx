@@ -6,7 +6,6 @@ import Proxies from './pages/Proxies'
 import MLXControl from './pages/MLXControl'
 import Tasks from './pages/Tasks'
 import History from './pages/History'
-import WorkflowBuilder from './pages/Workflow'
 import Toast from './components/Toast'
 import './index.css'
 
@@ -23,7 +22,7 @@ export default function App() {
           <Route path="mlx" element={<MLXControl />} />
           <Route path="tasks" element={<Tasks />} />
           <Route path="history" element={<History />} />
-          <Route path="automation" element={<WorkflowBuilder />} />
+          <Route path="automation" element={<Navigate to="/tasks" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -49,7 +49,7 @@ const accountSchema = new mongoose.Schema(
         },
         status: {
             type: String,
-            enum: ['active', 'inactive', 'banned', 'pending'],
+            enum: ['active', 'inactive', 'banned', 'pending', 'die_mail', 'no_mail', 'Reset Error'],
             default: 'pending',
             index: true,
         },

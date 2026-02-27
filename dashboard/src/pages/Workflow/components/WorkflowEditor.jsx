@@ -30,7 +30,9 @@ import {
     ZapOff,
     Link2Off,
     MousePointer2,
-    BoxSelect
+    BoxSelect,
+    Download,
+    Upload
 } from 'lucide-react';
 import { showToast } from '../../../components/Toast';
 import { AccountsService, ProxiesService, WorkflowsService } from '../../../services/apiService';
@@ -56,7 +58,15 @@ export default function WorkflowEditor(props) {
 
 function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
     const [nodes, setNodes, onNodesChange] = useNodesState(workflow.nodes || []);
-    const [edges, setEdges, onEdgesChange] = useEdgesState(workflow.edges || []);
+
+    // Migrate old edges: sourceHandle 'default' or null → 'true'
+    // (needed because nodes used to have a single 'default' handle, now they have 'true'/'false')
+    const migrateEdges = (rawEdges = []) => rawEdges.map(e => ({
+        ...e,
+        sourceHandle: (!e.sourceHandle || e.sourceHandle === 'default') ? 'true' : e.sourceHandle,
+    }));
+
+    const [edges, setEdges, onEdgesChange] = useEdgesState(migrateEdges(workflow.edges));
     const [selectedNode, setSelectedNode] = useState(null);
     const [showEditModal, setShowEditModal] = useState(false);
     const [editData, setEditData] = useState({ name: workflow.name, description: workflow.description || '' });
@@ -70,11 +80,22 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
     const [logs, setLogs] = useState([]);
     const [currentExecutionId, setCurrentExecutionId] = useState(null);
 
+    // Run Modal State
+    const [showRunModal, setShowRunModal] = useState(false);
+    const [runConfig, setRunConfig] = useState({
+        account_group_id: '',
+        proxy_group_id: '',
+        target_statuses: ['active'],
+        new_password: localStorage.getItem('task_new_password') || '',
+        limit: '',
+    });
+
     const [accountGroups, setAccountGroups] = useState([]);
     const [proxyGroups, setProxyGroups] = useState([]);
 
     const reactFlowWrapper = useRef(null);
     const logContainerRef = useRef(null);
+    const importFileRef = useRef(null);
 
     useEffect(() => {
         const load = async () => {
@@ -116,32 +137,32 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
         } catch (e) { if (!silent) showToast(e.message, 'error'); }
     };
 
-    const handleRun = async () => {
+    const handleRun = () => {
+        const sourceNode = nodes.find(n => n.type === 'sourceNode');
+        if (!sourceNode) return showToast('Vui lòng thêm khối START để khởi chạy', 'warning');
+        setShowRunModal(true);
+    };
+
+    const handleConfirmRun = async () => {
+        if (!runConfig.account_group_id) return showToast('Vui lòng chọn Nhóm tài khoản', 'warning');
+        setShowRunModal(false);
         try {
-            const sourceNode = nodes.find(n => n.type === 'sourceNode');
-            if (!sourceNode) return showToast('Vui lòng thêm khối "Nguồn dữ liệu" để khởi chạy', 'warning');
-
-            if (!sourceNode.data.config.account_group_id) {
-                return showToast('Vui lòng chọn Nhóm tài khoản trong khối Nguồn dữ liệu', 'warning');
-            }
-
             setIsExecuting(true);
             setShowLogs(true);
             setLogs([]);
             addLog(`🚀 Bắt đầu khởi chạy quy trình: ${workflow.name}`, 'info');
 
-            // Save first
             await handleSave(true);
             addLog(`💾 Đã lưu phiên bản mới nhất...`, 'info');
 
-            const res = await WorkflowsService.run(workflow._id);
+            const res = await WorkflowsService.run(workflow._id, runConfig);
             const executionId = res.data?.executionId || res.executionId;
 
             if (!executionId) throw new Error('Không nhận được ID thực thi từ server');
             setCurrentExecutionId(executionId);
 
             addLog(`✅ Server đã tiếp nhận yêu cầu. ID: ${executionId}`, 'success');
-            addLog(`ℹ️ Chế độ Chạy thử: Chỉ xử lý 1 tài khoản đầu tiên.`, 'info');
+            if (runConfig.test_mode) addLog(`ℹ️ Chế độ Chạy thử: Chỉ xử lý 1 tài khoản đầu tiên.`, 'info');
 
             // Setup WebSocket connection
             const socket = io('http://localhost:3000'); // TODO: Use env variable for base URL
@@ -152,7 +173,7 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
             });
 
             socket.on('workflow-log', (newLog) => {
-                setLogs(prev => [...prev, newLog]);
+                setLogs(prev => [...prev, { ...newLog, id: newLog.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}` }]);
             });
 
             socket.on('workflow-status', (data) => {
@@ -336,6 +357,45 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
         updateNodeConfig(nodeId, 'target_statuses', next);
     };
 
+    const handleExport = () => {
+        const data = {
+            name: workflow.name,
+            description: workflow.description,
+            nodes,
+            edges,
+            exported_at: new Date().toISOString()
+        };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${workflow.name.replace(/\s+/g, '_')}_workflow.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('✅ Đã xuất kịch bản ra file JSON');
+    };
+
+    const handleImport = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            try {
+                const data = JSON.parse(ev.target.result);
+                if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) {
+                    return showToast('File JSON không hợp lệ (thiếu nodes/edges)', 'error');
+                }
+                setNodes(data.nodes);
+                setEdges(migrateEdges(data.edges));
+                showToast(`✅ Đã nhập kịch bản: ${data.name || file.name}`);
+            } catch {
+                showToast('❌ File JSON bị lỗi hoặc sai định dạng', 'error');
+            }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+    };
+
     return (
         <div className="flex flex-col h-full overflow-hidden bg-[#0f1117] animate-in slide-in-from-right duration-500">
             {/* Action Bar */}
@@ -381,6 +441,28 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                     >
                         <BoxSelect size={18} />
                     </button>
+                    <div className="h-5 w-px bg-white/10" />
+                    <button
+                        onClick={handleExport}
+                        title="Xuất kịch bản ra JSON"
+                        className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/5 text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all"
+                    >
+                        <Download size={16} />
+                    </button>
+                    <button
+                        onClick={() => importFileRef.current?.click()}
+                        title="Nhập kịch bản từ JSON"
+                        className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/5 text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 transition-all"
+                    >
+                        <Upload size={16} />
+                    </button>
+                    <input
+                        ref={importFileRef}
+                        type="file"
+                        accept=".json,application/json"
+                        className="hidden"
+                        onChange={handleImport}
+                    />
                     <button
                         onClick={() => setShowLogs(!showLogs)}
                         className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${showLogs ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 text-slate-400 hover:text-white'}`}
@@ -399,24 +481,35 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                             <p className="text-[10px] font-bold text-slate-200 uppercase tracking-widest">Thư viện khối</p>
                         </div>
                     </div>
-                    <div className="p-4 space-y-2 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-slate-800">
-                        {NODE_TEMPLATES.map((tpl, i) => {
-                            const Icon = Icons[tpl.icon] || Icons.MousePointer2;
+                    <div className="p-4 space-y-6 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-slate-800">
+                        {['Hệ thống', 'Profile', 'Thao tác', 'Email', 'Logic'].map(category => {
+                            const templates = NODE_TEMPLATES.filter(t => t.category === category);
+                            if (templates.length === 0) return null;
+
                             return (
-                                <button key={i}
-                                    onClick={() => addNode(tpl)}
-                                    draggable
-                                    onDragStart={(event) => onDragStart(event, tpl.type, tpl)}
-                                    className="w-full flex items-center gap-3 px-3 py-2 rounded-xl border border-white/5 bg-white/[0.01] hover:bg-white/5 transition-all text-left group cursor-grab active:cursor-grabbing"
-                                >
-                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${tpl.color} group-hover:scale-110 flex-shrink-0 shadow-lg`}>
-                                        <Icon size={16} />
+                                <div key={category} className="space-y-2.5">
+                                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] pl-1 border-l-2 border-white/5 ml-0.5">{category}</h3>
+                                    <div className="space-y-2">
+                                        {templates.map((tpl, i) => {
+                                            const Icon = Icons[tpl.icon] || Icons.MousePointer2;
+                                            return (
+                                                <button key={i}
+                                                    onClick={() => addNode(tpl)}
+                                                    draggable
+                                                    onDragStart={(event) => onDragStart(event, tpl.type, tpl)}
+                                                    className="w-full flex items-center gap-3 px-3 py-2 rounded-xl border border-white/5 bg-white/[0.01] hover:bg-white/5 hover:border-white/10 transition-all text-left group cursor-grab active:cursor-grabbing"
+                                                >
+                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${tpl.color} group-hover:scale-110 flex-shrink-0 shadow-lg`}>
+                                                        <Icon size={16} />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="text-[11px] font-semibold text-slate-300 truncate">{tpl.label}</p>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
                                     </div>
-                                    <div className="min-w-0">
-                                        <p className="text-[9px] font-medium text-slate-600 leading-none mb-0.5">{tpl.category}</p>
-                                        <p className="text-[11px] font-semibold text-slate-300 truncate">{tpl.label}</p>
-                                    </div>
-                                </button>
+                                </div>
                             );
                         })}
                     </div>
@@ -510,76 +603,138 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                 {(() => {
                     const activeSelectedNode = selectedNode ? nodes.find(n => n.id === selectedNode.id) : null;
                     return (
-                        <aside className={`w-72 glass border-l border-white/5 p-4 z-10 transition-all duration-300 ${activeSelectedNode || selectedEdge ? 'translate-x-0' : 'translate-x-full absolute right-0 scale-95 opacity-0'}`}>
+                        <aside className={`w-72 glass border-l border-white/5 z-10 transition-all duration-300 flex flex-col overflow-hidden ${activeSelectedNode || selectedEdge ? 'translate-x-0' : 'translate-x-full absolute right-0 scale-95 opacity-0'}`}>
                             {activeSelectedNode && (
-                                <div className="space-y-6 text-slate-200">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <Settings2 size={16} className="text-blue-400" />
-                                            <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Cấu hình khối</span>
+                                <div className="flex flex-col h-full">
+                                    {/* Fixed header */}
+                                    <div className="p-4 pb-0 space-y-4 shrink-0">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <Settings2 size={16} className="text-blue-400" />
+                                                <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Cấu hình khối</span>
+                                            </div>
+                                            <button onClick={deleteNode} className="p-1.5 hover:bg-red-500/10 text-slate-600 hover:text-red-500 rounded-lg transition-all">
+                                                <Trash2 size={14} />
+                                            </button>
                                         </div>
-                                        <button onClick={deleteNode} className="p-1.5 hover:bg-red-500/10 text-slate-600 hover:text-red-500 rounded-lg transition-all">
-                                            <Trash2 size={14} />
-                                        </button>
+
+                                        <div className="p-4 bg-white/[0.03] border border-white/5 rounded-2xl">
+                                            <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">{activeSelectedNode.data.category}</p>
+                                            <p className="text-sm font-bold text-slate-200">{activeSelectedNode.data.label}</p>
+                                        </div>
                                     </div>
 
-                                    <div className="p-4 bg-white/[0.03] border border-white/5 rounded-2xl">
-                                        <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">{activeSelectedNode.data.category}</p>
-                                        <p className="text-sm font-bold text-slate-200">{activeSelectedNode.data.label}</p>
-                                    </div>
-
-                                    <div className="space-y-5">
+                                    {/* Scrollable content */}
+                                    <div className="flex-1 overflow-y-auto p-4 pt-4 space-y-5 text-slate-200 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/10">
                                         {activeSelectedNode.type === 'sourceNode' ? (
-                                            <>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-2 pl-1">Nhóm tài khoản</label>
-                                                    <Select
-                                                        options={accountGroups.map(g => ({ value: g._id, label: g.name }))}
-                                                        value={activeSelectedNode.data.config.account_group_id}
-                                                        onChange={e => {
-                                                            const g = accountGroups.find(x => x._id === e.target.value);
-                                                            updateNodeConfig(activeSelectedNode.id, 'account_group_id', e.target.value, { account_group_name: g?.name });
-                                                        }}
-                                                    />
+                                            <div className="flex flex-col items-center justify-center text-center py-6 gap-3">
+                                                <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
+                                                    <Icons.Zap size={24} className="text-emerald-400 fill-emerald-400" />
                                                 </div>
                                                 <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-2 pl-1">Trạng thái chạy</label>
-                                                    <div className="flex flex-wrap gap-1.5">
-                                                        {Object.keys(STATUS_MAP).map(status => {
-                                                            const isSelected = activeSelectedNode.data.config.target_statuses.includes(status);
-                                                            return (
-                                                                <button key={status} onClick={() => toggleStatus(activeSelectedNode.id, activeSelectedNode.data.config.target_statuses, status)}
-                                                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all 
-                                                                        ${isSelected ? 'bg-blue-600 border-blue-500 text-white' : 'bg-white/5 border-white/5 text-slate-500 hover:bg-white/10'}`}>
-                                                                    {STATUS_MAP[status].label}
-                                                                </button>
-                                                            );
-                                                        })}
-                                                    </div>
+                                                    <p className="text-sm font-bold text-slate-300 mb-1">Điểm bắt đầu</p>
+                                                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                                                        Nhóm tài khoản và proxy sẽ được<br />
+                                                        chọn khi nhấn <span className="text-emerald-400 font-bold">▶ Chạy thử</span>
+                                                    </p>
                                                 </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-2 pl-1">Nhóm Proxy</label>
-                                                    <Select
-                                                        options={proxyGroups.map(g => ({ value: g._id, label: g.name }))}
-                                                        value={activeSelectedNode.data.config.proxy_group_id}
-                                                        onChange={e => {
-                                                            const g = proxyGroups.find(x => x._id === e.target.value);
-                                                            updateNodeConfig(activeSelectedNode.id, 'proxy_group_id', e.target.value, { proxy_group_name: g?.name });
-                                                        }}
-                                                    />
-                                                </div>
-                                            </>
+                                                <button
+                                                    onClick={handleRun}
+                                                    className="mt-2 px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500 transition-all flex items-center gap-2"
+                                                >
+                                                    <Icons.Play size={12} fill="white" /> Cấu hình & Chạy thử
+                                                </button>
+                                            </div>
                                         ) : (
-                                            Object.keys(activeSelectedNode.data.config || {}).filter(k => !k.startsWith('delay_')).map(key => (
-                                                <div key={key}>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-2 pl-1">{key.replace(/_/g, ' ')}</label>
-                                                    <input
-                                                        className="w-full bg-[#0f1117] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500/50 transition-all font-medium"
-                                                        value={activeSelectedNode.data.config[key]}
-                                                        onChange={(e) => updateNodeConfig(activeSelectedNode.id, key, e.target.value)}
-                                                    />
-                                                </div>
-                                            ))
+                                            Object.keys(activeSelectedNode.data.config || {}).filter(k => !k.startsWith('delay_')).map(key => {
+                                                const label = key.replace(/_/g, ' ');
+                                                const value = activeSelectedNode.data.config[key];
+
+                                                if (key === 'type' && activeSelectedNode.data.label === 'Điều kiện') {
+                                                    return (
+                                                        <div key={key}>
+                                                            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-2 pl-1">{label}</label>
+                                                            <Select
+                                                                options={[
+                                                                    { value: 'element_exists', label: 'Phần tử xuất hiện' },
+                                                                    { value: 'element_not_exists', label: 'Phần tử biến mất' },
+                                                                    { value: 'text_exists', label: 'Chứa đoạn chữ' },
+                                                                ]}
+                                                                value={value}
+                                                                onChange={(e) => updateNodeConfig(activeSelectedNode.id, key, e.target.value)}
+                                                            />
+                                                        </div>
+                                                    );
+                                                }
+
+                                                if (key === 'status' && activeSelectedNode.data.label === 'Cập nhật trạng thái') {
+                                                    return (
+                                                        <div key={key}>
+                                                            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-2 pl-1">{label}</label>
+                                                            <Select
+                                                                options={[
+                                                                    { value: 'active', label: 'Hoạt động' },
+                                                                    { value: 'die_mail', label: 'Die Mail' },
+                                                                    { value: 'no_mail', label: 'No Mail' },
+                                                                    { value: 'Reset Error', label: 'Lỗi Reset' },
+                                                                    { value: 'banned', label: 'Bị khoá' },
+                                                                    { value: 'inactive', label: 'Không kích hoạt' },
+                                                                    { value: 'pending', label: 'Chờ xử lý' },
+                                                                ]}
+                                                                value={value}
+                                                                onChange={(e) => updateNodeConfig(activeSelectedNode.id, key, e.target.value)}
+                                                            />
+                                                        </div>
+                                                    );
+                                                }
+
+                                                if (key === 'extract_type' && activeSelectedNode.data.label === 'Đọc Email') {
+                                                    return (
+                                                        <div key={key}>
+                                                            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-2 pl-1">Loại trích xuất</label>
+                                                            <Select
+                                                                options={[
+                                                                    { value: 'link', label: 'Link đầu tiên trong email' },
+                                                                    { value: 'otp_subject', label: 'OTP từ tiêu đề (Subject)' },
+                                                                    { value: 'otp_body', label: 'OTP từ nội dung (Body)' },
+                                                                    { value: 'regex', label: 'Regex tuỳ chỉnh' },
+                                                                ]}
+                                                                value={value}
+                                                                onChange={(e) => updateNodeConfig(activeSelectedNode.id, key, e.target.value)}
+                                                            />
+                                                        </div>
+                                                    );
+                                                }
+
+                                                if (key === 'variables' && activeSelectedNode.data.label === 'Khai báo biến') {
+                                                    return (
+                                                        <div key={key}>
+                                                            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-2 pl-1">Danh sách biến</label>
+                                                            <p className="text-[9px] text-slate-600 italic pl-1 mb-2">Mỗi dòng: <span className="text-teal-500 font-mono">tên_biến=giá_trị</span> (để trống = chờ block khác điền)</p>
+                                                            <textarea
+                                                                rows={6}
+                                                                className="w-full bg-[#0f1117] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-teal-500/50 transition-all font-mono resize-none"
+                                                                value={value}
+                                                                onChange={(e) => updateNodeConfig(activeSelectedNode.id, key, e.target.value)}
+                                                                placeholder={"reset_link=\notp=\nverify_link=\nmy_url=https://example.com"}
+                                                            />
+                                                        </div>
+                                                    );
+                                                }
+
+                                                return (
+                                                    <div key={key}>
+                                                        <label className="text-[10px] font-bold text-slate-500 uppercase block mb-2 pl-1">{label}</label>
+                                                        <input
+                                                            type={['seconds', 'timeout', 'retries', 'wait_seconds'].includes(key) ? 'number' : 'text'}
+                                                            className="w-full bg-[#0f1117] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500/50 transition-all font-medium"
+                                                            value={value}
+                                                            onChange={(e) => updateNodeConfig(activeSelectedNode.id, key, e.target.value)}
+                                                            placeholder={`Nhập ${label.toLowerCase()}...`}
+                                                        />
+                                                    </div>
+                                                );
+                                            })
                                         )}
 
                                         {/* Common Random Delay Config */}
@@ -615,7 +770,7 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                             )}
 
                             {selectedEdge && (
-                                <div className="space-y-6 text-slate-200">
+                                <div className="space-y-6 text-slate-200 p-4">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
                                             <Icons.Share2 size={16} className="text-purple-400" />
@@ -691,7 +846,80 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                         </div>
                         <div className="flex justify-end gap-3 pt-4">
                             <button onClick={() => setShowEditModal(false)} className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:bg-white/5 transition-all">Huỷ</button>
-                            <button onClick={handleUpdateDetails} className="px-8 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-500 transition-all">Cập nhật</button>
+                            <button onClick={handleUpdateDetails} className="px-8 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-500 transition-all">Đầy lên</button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+
+            {showRunModal && (
+                <Modal title="Cấu hình chạy" onClose={() => setShowRunModal(false)}>
+                    <div className="space-y-5">
+                        <div>
+                            <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">Nhóm tài khoản <span className="text-rose-500">*</span></label>
+                            <Select options={accountGroups.map(g => ({ value: g._id, label: g.name }))} value={runConfig.account_group_id} onChange={e => setRunConfig(c => ({ ...c, account_group_id: e.target.value }))} />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">Nhóm proxy <span className="text-slate-600">(tuỳ chọn)</span></label>
+                            <Select
+                                options={[{ value: '', label: '— Không dùng proxy —' }, ...proxyGroups.map(g => ({ value: g._id, label: g.name }))]}
+                                value={runConfig.proxy_group_id}
+                                onChange={e => setRunConfig(c => ({ ...c, proxy_group_id: e.target.value }))}
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">
+                                Mật khẩu mới <span className="text-slate-600 font-normal normal-case">(nếu kịch bản cần)</span>
+                            </label>
+                            <input
+                                value={runConfig.new_password}
+                                onChange={e => setRunConfig(c => ({ ...c, new_password: e.target.value }))}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 transition-all"
+                                placeholder="Để trống nếu kịch bản không cần..."
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">Trạng thái tài khoản cần xử lý</label>
+                            <div className="flex flex-wrap gap-2">
+                                {['active', 'inactive', 'pending', 'no_mail', 'die_mail', 'Reset Error'].map(s => {
+                                    const checked = runConfig.target_statuses.includes(s);
+                                    const statusInfo = STATUS_MAP[s];
+                                    return (
+                                        <button
+                                            key={s}
+                                            onClick={() => setRunConfig(c => ({
+                                                ...c,
+                                                target_statuses: checked ? c.target_statuses.filter(x => x !== s) : [...c.target_statuses, s]
+                                            }))}
+                                            className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${checked
+                                                ? `${statusInfo?.bg || 'bg-blue-500/20 border-blue-500/50'} ${statusInfo?.color || 'text-blue-400'}`
+                                                : 'bg-white/5 border-white/10 text-slate-500 hover:border-white/20'
+                                                }`}
+                                        >
+                                            {statusInfo?.label || s}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">
+                                Số tài khoản muốn chạy
+                            </label>
+                            <input
+                                type="number" min="0"
+                                value={runConfig.limit}
+                                onChange={e => setRunConfig(c => ({ ...c, limit: e.target.value }))}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 transition-all"
+                                placeholder="Để trống = chạy tất cả"
+                            />
+                            <p className="text-[10px] text-slate-600 mt-1.5 pl-1 italic">Nhập số để giới hạn, để trống = chạy hết</p>
+                        </div>
+                        <div className="flex justify-end gap-3 pt-2">
+                            <button onClick={() => setShowRunModal(false)} className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:bg-white/5 transition-all">Huỷ</button>
+                            <button onClick={handleConfirmRun} className="px-8 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-500 transition-all flex items-center gap-2">
+                                <Icons.Play size={14} fill="white" /> Bắt đầu chạy
+                            </button>
                         </div>
                     </div>
                 </Modal>
