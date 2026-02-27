@@ -43,7 +43,7 @@ function AccountForm({ initial, groups, groupId, onSave, onClose }) {
                 </div>
                 <div>
                     <label className="text-xs text-slate-500 mb-1.5 block font-medium">TextNow Pass *</label>
-                    <input required type="password" value={form.textnow_pass} onChange={h('textnow_pass')} className={inputCls} placeholder="••••••••" />
+                    <input required type="text" value={form.textnow_pass} onChange={h('textnow_pass')} className={inputCls} placeholder="password" />
                 </div>
                 <div>
                     <label className="text-xs text-slate-500 mb-1.5 block font-medium">Hotmail User</label>
@@ -51,11 +51,15 @@ function AccountForm({ initial, groups, groupId, onSave, onClose }) {
                 </div>
                 <div>
                     <label className="text-xs text-slate-500 mb-1.5 block font-medium">Hotmail Pass</label>
-                    <input type="password" value={form.hotmail_pass} onChange={h('hotmail_pass')} className={inputCls} placeholder="••••••••" />
+                    <input type="text" value={form.hotmail_pass} onChange={h('hotmail_pass')} className={inputCls} placeholder="password" />
                 </div>
                 <div className="col-span-2">
                     <label className="text-xs text-slate-500 mb-1.5 block font-medium">Hotmail Token</label>
                     <input value={form.hotmail_token} onChange={h('hotmail_token')} className={inputCls} placeholder="OAuth token" />
+                </div>
+                <div className="col-span-2">
+                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">Hotmail Client ID</label>
+                    <input value={form.hotmail_client_id} onChange={h('hotmail_client_id')} className={inputCls} placeholder="dbc8e03a-b00c-..." />
                 </div>
                 <div>
                     <label className="text-xs text-slate-500 mb-1.5 block font-medium">Trạng thái</label>
@@ -248,9 +252,46 @@ export default function Accounts() {
         setImportLoading(true)
         try {
             const list = importText.trim().split('\n').filter(Boolean).map(line => {
-                const [textnow_user, textnow_pass, hotmail_user, hotmail_pass] = line.split(':')
-                return { textnow_user, textnow_pass, hotmail_user, hotmail_pass, status: 'pending' }
-            })
+                const parts = line.split('|').map(p => p.trim());
+
+                if (parts.length === 6) {
+                    const [tnUser, tnPass, hmUser, hmPass, hmToken, hmClientId] = parts;
+                    return {
+                        textnow_user: tnUser,
+                        textnow_pass: tnPass,
+                        hotmail_user: hmUser,
+                        hotmail_pass: hmPass,
+                        hotmail_token: hmToken,
+                        hotmail_client_id: hmClientId,
+                        status: 'pending'
+                    };
+                } else if (parts.length === 4) {
+                    const [hmUser, hmPass, hmToken, hmClientId] = parts;
+                    return {
+                        textnow_user: hmUser,
+                        textnow_pass: hmPass,
+                        hotmail_user: hmUser,
+                        hotmail_pass: hmPass,
+                        hotmail_token: hmToken,
+                        hotmail_client_id: hmClientId,
+                        status: 'pending'
+                    };
+                }
+
+                // Fallback for old format if someone still uses it (colon)
+                if (line.includes(':')) {
+                    const [textnow_user, textnow_pass, hotmail_user, hotmail_pass] = line.split(':');
+                    return { textnow_user, textnow_pass, hotmail_user, hotmail_pass, status: 'pending' };
+                }
+
+                return null;
+            }).filter(Boolean);
+
+            if (list.length === 0) {
+                showToast('Không có dữ liệu hợp lệ để nhập', 'warning');
+                setImportLoading(false);
+                return;
+            }
             const gid = selectedGroup !== '__all__' && selectedGroup !== '__ungrouped__' ? selectedGroup : undefined
             const res = await AccountsService.importAccounts({ accounts: list, group_id: gid })
             showToast(`✅ Đã nhập ${res.inserted} tài khoản`)
@@ -422,13 +463,17 @@ export default function Accounts() {
             {showImport && (
                 <Modal title="Nhập hàng loạt tài khoản" onClose={() => setShowImport(false)}>
                     <div className="space-y-3">
-                        <p className="text-xs text-slate-500">
-                            Mỗi dòng: <code className="text-blue-400">textnow_user:textnow_pass:hotmail_user:hotmail_pass</code>
-                            {currentGroup && <span className="ml-2 text-emerald-400">→ sẽ vào nhóm "{currentGroup.name}"</span>}
-                        </p>
+                        <div className="p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl space-y-2">
+                            <p className="text-[11px] text-slate-400 font-medium">Hỗ trợ 2 định dạng (dùng dấu <code className="text-blue-400 font-bold">|</code> để ngăn cách):</p>
+                            <ul className="text-[10px] text-slate-500 space-y-1 list-disc pl-4">
+                                <li><span className="text-slate-300">6 cột:</span> <code className="text-blue-400/80">tn_user|tn_pass|hm_user|hm_pass|hm_token|client_id</code></li>
+                                <li><span className="text-slate-300">4 cột:</span> <code className="text-blue-400/80">hm_user|hm_pass|hm_token|client_id</code> (Tự động lấy hm làm tn)</li>
+                            </ul>
+                            {currentGroup && <p className="text-[10px] text-emerald-400 font-medium pt-1">→ Tài khoản sẽ được thêm vào nhóm: <span className="underline">{currentGroup.name}</span></p>}
+                        </div>
                         <textarea rows={10} value={importText} onChange={e => setImportText(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 resize-none scrollbar-thin scrollbar-thumb-slate-700"
-                            placeholder="user1:pass1:email1@hotmail.com:emailpass1&#10;user2:pass2:email2@hotmail.com:emailpass2" />
+                            className="w-full bg-[#0f1117] border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 placeholder:text-slate-700 focus:outline-none focus:border-blue-500/40 resize-none scrollbar-thin scrollbar-thumb-slate-800"
+                            placeholder="user|pass|email@hotmail.com|pass|token|clientid&#10;email@hotmail.com|pass|token|clientid" />
                         <div className="flex justify-end gap-2">
                             <button onClick={() => setShowImport(false)} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Huỷ</button>
                             <button onClick={handleImport} disabled={importLoading}
@@ -566,7 +611,7 @@ export default function Accounts() {
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="border-b border-white/5">
-                                    {['TextNow User', 'Hotmail', 'Nhóm', 'Trạng thái', 'Ngày tạo', 'Thao tác'].map(h => (
+                                    {['TextNow User', 'Nhóm', 'Trạng thái', 'Ngày thao tác', 'Thao tác'].map(h => (
                                         <th key={h} className="text-left text-xs text-slate-500 font-semibold uppercase tracking-wider px-4 py-3.5">{h}</th>
                                     ))}
                                 </tr>
@@ -597,7 +642,6 @@ export default function Accounts() {
                                         return (
                                             <tr key={acc._id} className="border-b border-white/3 hover:bg-white/3 transition-colors">
                                                 <td className="px-4 py-3.5 font-medium text-slate-200">{acc.textnow_user}</td>
-                                                <td className="px-4 py-3.5 text-slate-400 text-xs">{acc.hotmail_user || <span className="text-slate-600">Chưa liên kết</span>}</td>
                                                 <td className="px-4 py-3.5">
                                                     {grp
                                                         ? <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border"
@@ -607,7 +651,7 @@ export default function Accounts() {
                                                         : <span className="text-slate-600 text-xs">—</span>}
                                                 </td>
                                                 <td className="px-4 py-3.5"><StatusBadge status={acc.status} /></td>
-                                                <td className="px-4 py-3.5 text-slate-500 text-xs">{new Date(acc.created_at).toLocaleDateString('vi-VN')}</td>
+                                                <td className="px-4 py-3.5 text-slate-500 text-xs">{new Date(acc.updated_at).toLocaleString('vi-VN')}</td>
                                                 <td className="px-4 py-3.5">
                                                     <div className="flex items-center gap-1">
                                                         <button onClick={() => setEditing(acc)}

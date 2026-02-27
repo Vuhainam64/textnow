@@ -40,8 +40,7 @@ router.get('/', async (req, res) => {
         const accounts = await Account.find(query)
             .sort({ created_at: -1 })
             .skip((page - 1) * limit)
-            .limit(Number(limit))
-            .select('-textnow_pass -hotmail_pass -hotmail_token'); // Ẩn các trường nhạy cảm
+            .limit(Number(limit));
 
         res.json({
             success: true,

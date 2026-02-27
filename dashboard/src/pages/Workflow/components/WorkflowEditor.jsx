@@ -8,6 +8,8 @@ import {
     useNodesState,
     useEdgesState,
     reconnectEdge,
+    useOnSelectionChange,
+    ReactFlowProvider,
 } from '@xyflow/react';
 import { io } from 'socket.io-client';
 import '@xyflow/react/dist/style.css';
@@ -26,7 +28,9 @@ import {
     X,
     Loader2,
     ZapOff,
-    Link2Off
+    Link2Off,
+    MousePointer2,
+    BoxSelect
 } from 'lucide-react';
 import { showToast } from '../../../components/Toast';
 import { AccountsService, ProxiesService, WorkflowsService } from '../../../services/apiService';
@@ -42,13 +46,23 @@ const nodeTypes = {
     sourceNode: SourceNode
 };
 
-export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
+export default function WorkflowEditor(props) {
+    return (
+        <ReactFlowProvider>
+            <WorkflowEditorInternal {...props} />
+        </ReactFlowProvider>
+    );
+}
+
+function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
     const [nodes, setNodes, onNodesChange] = useNodesState(workflow.nodes || []);
     const [edges, setEdges, onEdgesChange] = useEdgesState(workflow.edges || []);
     const [selectedNode, setSelectedNode] = useState(null);
     const [showEditModal, setShowEditModal] = useState(false);
     const [editData, setEditData] = useState({ name: workflow.name, description: workflow.description || '' });
     const [selectedEdge, setSelectedEdge] = useState(null);
+    const [selectionMode, setSelectionMode] = useState(false);
+    const [selectedNodes, setSelectedNodes] = useState([]);
 
     // Execution States
     const [isExecuting, setIsExecuting] = useState(false);
@@ -198,7 +212,19 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
     const onPaneClick = () => {
         setSelectedNode(null);
         setSelectedEdge(null);
+        setSelectedNodes([]);
     };
+
+    useOnSelectionChange({
+        onChange: ({ nodes, edges }) => {
+            setSelectedNodes(nodes);
+            if (nodes.length === 1) setSelectedNode(nodes[0]);
+            else setSelectedNode(null);
+
+            if (edges.length === 1 && nodes.length === 0) setSelectedEdge(edges[0]);
+            else setSelectedEdge(null);
+        },
+    });
 
     const addNode = (template) => {
         const id = `${template.type}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
@@ -261,6 +287,18 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
         if (!selectedEdge) return;
         setEdges((eds) => eds.filter((e) => e.id !== selectedEdge.id));
         setSelectedEdge(null);
+    };
+
+    const deleteSelected = () => {
+        const selectedNodeIds = selectedNodes.map(n => n.id);
+        if (selectedNodeIds.length === 0) return;
+
+        setNodes(nds => nds.filter(n => !selectedNodeIds.includes(n.id)));
+        setEdges(eds => eds.filter(e => !selectedNodeIds.includes(e.source) && !selectedNodeIds.includes(e.target)));
+
+        setSelectedNodes([]);
+        setSelectedNode(null);
+        showToast(`Đã xoá ${selectedNodeIds.length} khối`);
     };
 
     const onReconnect = useCallback(
@@ -337,6 +375,13 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
                         </button>
                     )}
                     <button
+                        onClick={() => setSelectionMode(!selectionMode)}
+                        title={selectionMode ? "Tắt chế độ chọn nhiều" : "Bật chế độ chọn nhiều (Quét chuột để chọn)"}
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${selectionMode ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : 'bg-white/5 text-slate-400 hover:text-white'}`}
+                    >
+                        <BoxSelect size={18} />
+                    </button>
+                    <button
                         onClick={() => setShowLogs(!showLogs)}
                         className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${showLogs ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 text-slate-400 hover:text-white'}`}
                     >
@@ -385,9 +430,32 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
                         nodeTypes={nodeTypes} onNodeClick={onNodeClick} onPaneClick={onPaneClick}
                         onEdgeClick={onEdgeClick} onReconnect={onReconnect}
                         onDrop={onDrop} onDragOver={onDragOver}
+                        selectionOnDrag={selectionMode}
+                        panOnDrag={!selectionMode}
+                        selectionKeyCode="Control"
+                        multiSelectionKeyCode="Control"
+                        deleteKeyCode="Delete"
                         fitView className="bg-[#0f1117]"
                         defaultEdgeOptions={{ animated: true, style: { strokeWidth: 3 } }}
                     >
+                        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+                            <div className="bg-[#161b27]/80 backdrop-blur-md border border-white/5 px-4 py-2 rounded-full shadow-2xl flex items-center gap-3">
+                                <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium">
+                                    <kbd className="px-1.5 py-0.5 bg-white/5 border border-white/10 rounded text-slate-300">Ctrl</kbd>
+                                    <span>+ Kéo chuột để chọn nhiều | </span>
+                                    <kbd className="px-1.5 py-0.5 bg-white/5 border border-white/10 rounded text-slate-300">Del</kbd>
+                                    <span>để xoá</span>
+                                </div>
+                                {selectionMode && (
+                                    <>
+                                        <div className="w-px h-3 bg-white/10" />
+                                        <div className="text-[10px] text-purple-400 font-bold uppercase tracking-wider animate-pulse">
+                                            Selection Mode Active
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
                         <Background color="#1e2535" gap={25} size={1} variant="dots" />
                         <Controls className="!bg-[#161b27] !border-white/5 !shadow-2xl fill-white" />
                         <MiniMap
@@ -502,7 +570,7 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
                                                 </div>
                                             </>
                                         ) : (
-                                            Object.keys(activeSelectedNode.data.config || {}).map(key => (
+                                            Object.keys(activeSelectedNode.data.config || {}).filter(k => !k.startsWith('delay_')).map(key => (
                                                 <div key={key}>
                                                     <label className="text-[10px] font-bold text-slate-500 uppercase block mb-2 pl-1">{key.replace(/_/g, ' ')}</label>
                                                     <input
@@ -513,6 +581,35 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
                                                 </div>
                                             ))
                                         )}
+
+                                        {/* Common Random Delay Config */}
+                                        <div className="pt-4 border-t border-white/5 space-y-4">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <Icons.Clock size={13} className="text-amber-500" />
+                                                <label className="text-[10px] font-bold text-amber-500 uppercase">Nghi ngẫu nhiên sau khối</label>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="text-[9px] text-slate-500 block mb-1.5 ml-1">Giây (Ít nhất)</label>
+                                                    <input
+                                                        type="number"
+                                                        className="w-full bg-[#0f1117] border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500/30 transition-all font-medium"
+                                                        value={activeSelectedNode.data.config?.delay_min || 0}
+                                                        onChange={(e) => updateNodeConfig(activeSelectedNode.id, 'delay_min', e.target.value)}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[9px] text-slate-500 block mb-1.5 ml-1">Giây (Nhiều nhất)</label>
+                                                    <input
+                                                        type="number"
+                                                        className="w-full bg-[#0f1117] border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500/30 transition-all font-medium"
+                                                        value={activeSelectedNode.data.config?.delay_max || 0}
+                                                        onChange={(e) => updateNodeConfig(activeSelectedNode.id, 'delay_max', e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <p className="text-[9px] text-slate-600 italic px-1">Khoảng nghỉ này sẽ xảy ra ngay sau khi khối thực hiện xong nhiệm vụ.</p>
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -541,7 +638,25 @@ export default function WorkflowEditor({ workflow, onBack, onUpdate }) {
                                 </div>
                             )}
 
-                            {!activeSelectedNode && !selectedEdge && (
+                            {!activeSelectedNode && !selectedEdge && selectedNodes.length > 1 && (
+                                <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-6 animate-in fade-in zoom-in duration-300">
+                                    <div className="w-20 h-20 rounded-[2.5rem] bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shadow-2xl shadow-blue-500/10">
+                                        <BoxSelect size={40} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <p className="text-sm font-bold text-slate-200">Đã chọn {selectedNodes.length} khối</p>
+                                        <p className="text-xs text-slate-500">Bạn có thể di chuyển chúng cùng lúc hoặc xoá tất cả.</p>
+                                    </div>
+                                    <button
+                                        onClick={deleteSelected}
+                                        className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/20 transition-all font-bold text-xs"
+                                    >
+                                        <Trash2 size={16} /> Xoá {selectedNodes.length} khối đã chọn
+                                    </button>
+                                </div>
+                            )}
+
+                            {!activeSelectedNode && !selectedEdge && selectedNodes.length <= 1 && (
                                 <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-4">
                                     <div className="w-16 h-16 rounded-3xl bg-white/[0.02] border border-white/5 flex items-center justify-center text-slate-700">
                                         <Settings2 size={32} />

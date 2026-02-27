@@ -161,6 +161,27 @@ class WorkflowEngine {
         const { label, config } = node.data;
         this._log(executionId, `⚙️ Đang thực hiện: ${label}...`);
 
+        try {
+            await this._runNodeLogic(executionId, node, context);
+
+            // Xử lý Delay sau khi thực hiện xong khối
+            const delayMin = parseInt(config.delay_min) || 0;
+            const delayMax = parseInt(config.delay_max) || 0;
+
+            if (delayMax > 0 && delayMax >= delayMin) {
+                const randomDelay = Math.floor(Math.random() * (delayMax - delayMin + 1)) + delayMin;
+                if (randomDelay > 0) {
+                    this._log(executionId, `   ⏳ Nghỉ ngẫu nhiên ${randomDelay} giây trước khối tiếp theo...`);
+                    await this._wait(executionId, randomDelay * 1000);
+                }
+            }
+        } catch (err) {
+            throw err;
+        }
+    }
+
+    async _runNodeLogic(executionId, node, context) {
+        const { label, config } = node.data;
         switch (label) {
             case 'Tạo profile mới': {
                 // Giả định tạo trên MLX
@@ -197,13 +218,15 @@ class WorkflowEngine {
 
             case 'Mở trang web': {
                 if (!context.page) throw new Error('Trình duyệt chưa được mở');
-                await context.page.goto(config.url, { waitUntil: 'domcontentloaded' });
-                this._log(executionId, `   + Đã truy cập: ${config.url}`);
+                const resolvedUrl = this._resolveValue(config.url, context);
+                await context.page.goto(resolvedUrl, { waitUntil: 'domcontentloaded' });
+                this._log(executionId, `   + Đã truy cập: ${resolvedUrl}`);
                 break;
             }
 
             case 'Click chuột': {
                 if (!context.page) throw new Error('Trình duyệt chưa được mở');
+                await context.page.waitForSelector(config.selector, { timeout: 30000 });
                 await context.page.click(config.selector);
                 this._log(executionId, `   + Đã click: ${config.selector}`);
                 break;
@@ -211,22 +234,17 @@ class WorkflowEngine {
 
             case 'Nhập văn bản': {
                 if (!context.page) throw new Error('Trình duyệt chưa được mở');
-                await context.page.fill(config.selector, config.value);
-                this._log(executionId, `   + Đã nhập văn bản vào: ${config.selector}`);
+                const resolvedValue = this._resolveValue(config.value, context);
+                await context.page.waitForSelector(config.selector, { timeout: 30000 });
+                await context.page.fill(config.selector, resolvedValue);
+                this._log(executionId, `   + Đã nhập vào ${config.selector}: ${resolvedValue.includes('@') ? '***' : resolvedValue}`);
                 break;
             }
 
             case 'Chờ đợi': {
                 const ms = (parseInt(config.seconds) || 5) * 1000;
                 this._log(executionId, `   + Chờ ${config.seconds} giây...`);
-
-                const startWait = Date.now();
-                while (Date.now() - startWait < ms) {
-                    if (this.activeExecutions.get(executionId)?.status === 'stopping') {
-                        throw new Error('USER_ABORTED');
-                    }
-                    await new Promise(r => setTimeout(r, 500));
-                }
+                await this._wait(executionId, ms);
                 break;
             }
 
@@ -257,7 +275,7 @@ class WorkflowEngine {
             }
 
             default:
-                this._log(executionId, `   ⚠️ Khối "${label}" chưa được hỗ trợ logic thực thi. Bỏ qua.`, 'warning');
+                this._log(executionId, `   ⚠️ Khối "${label} " chưa được hỗ trợ logic thực thi. Bỏ qua.`, 'warning');
         }
     }
 
@@ -277,6 +295,26 @@ class WorkflowEngine {
         socketService.to(executionId).emit('workflow-log', logEntry);
 
         console.log(`[Engine][${executionId}] ${message}`);
+    }
+
+    _resolveValue(value, context) {
+        if (!value || typeof value !== 'string') return value;
+
+        return value
+            .replace(/{{email}}/g, context.account.textnow_user || '')
+            .replace(/{{pass}}/g, context.account.textnow_pass || '')
+            .replace(/{{hotmail}}/g, context.account.hotmail_user || '')
+            .replace(/{{hotmail_pass}}/g, context.account.hotmail_pass || '');
+    }
+
+    async _wait(executionId, ms) {
+        const startWait = Date.now();
+        while (Date.now() - startWait < ms) {
+            if (this.activeExecutions.get(executionId)?.status === 'stopping') {
+                throw new Error('USER_ABORTED');
+            }
+            await new Promise(r => setTimeout(r, 500));
+        }
     }
 }
 
