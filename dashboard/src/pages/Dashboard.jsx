@@ -123,7 +123,7 @@ export default function Dashboard() {
         else setRefreshing(true)
         try {
             const res = await DashboardService.getStats()
-            setData(res.data.data)
+            setData(res.data)          // interceptor đã unwrap: res = { success, data }
             setLastUpdate(new Date())
         } catch {
             // offline — giữ data cũ
