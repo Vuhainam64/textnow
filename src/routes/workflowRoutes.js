@@ -38,7 +38,7 @@ router.post('/', async (req, res) => {
 // Update workflow
 router.put('/:id', async (req, res) => {
     try {
-        const workflow = await Workflow.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        const workflow = await Workflow.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
         res.json({ success: true, data: workflow });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });

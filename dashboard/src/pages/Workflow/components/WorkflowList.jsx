@@ -7,7 +7,8 @@ import {
     Calendar,
     ChevronRight,
     Edit3,
-    FileText
+    FileText,
+    Database
 } from 'lucide-react';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
@@ -26,7 +27,24 @@ export default function WorkflowList({ workflows, loading, onEdit, onCreate, onD
         if (!newWorkflowData.name.trim()) return showToast('Vui lòng nhập tên quy trình', 'warning');
         try {
             const initialNodes = [
-                { id: 'start', type: 'taskNode', position: { x: 250, y: 50 }, data: { label: 'Bắt đầu', category: 'Trigger', icon: Zap, color: 'bg-emerald-500/20 text-emerald-400' } }
+                {
+                    id: 'source_start',
+                    type: 'sourceNode',
+                    position: { x: 250, y: 50 },
+                    data: {
+                        label: 'Nguồn dữ liệu',
+                        category: 'Hệ thống',
+                        icon: 'Database',
+                        color: 'bg-emerald-500/20 text-emerald-400',
+                        config: {
+                            account_group_id: '',
+                            account_group_name: '',
+                            proxy_group_id: '',
+                            proxy_group_name: '',
+                            target_statuses: ['active']
+                        }
+                    }
+                }
             ];
             const res = await WorkflowsService.create({
                 ...newWorkflowData,

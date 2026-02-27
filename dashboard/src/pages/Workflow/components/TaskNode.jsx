@@ -1,9 +1,12 @@
 import React from 'react';
 import { Handle, Position } from '@xyflow/react';
-import { MousePointer2 } from 'lucide-react';
+import * as Icons from 'lucide-react';
 
 const TaskNode = ({ data, selected }) => {
-    const Icon = data.icon || MousePointer2;
+    // Resolve icon from string or component
+    const IconComponent = typeof data.icon === 'string' ? Icons[data.icon] : data.icon;
+    const Icon = IconComponent || Icons.MousePointer2;
+
     return (
         <div className={`px-4 py-3 rounded-xl glass border-2 transition-all min-w-[150px]
             ${selected ? 'border-blue-500 shadow-lg shadow-blue-500/20' : 'border-white/5 hover:border-white/20'}`}>
