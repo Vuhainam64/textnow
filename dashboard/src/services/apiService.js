@@ -49,8 +49,7 @@ export const MLXService = {
 }
 
 export const DashboardService = {
-    getAccountStats: () => api.get('/accounts/stats'),
-    getProxyStats: () => api.get('/proxies/stats'),
+    getStats: () => api.get('/dashboard/stats'),
 }
 
 export const TasksService = {

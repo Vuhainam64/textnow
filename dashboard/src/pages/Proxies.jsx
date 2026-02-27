@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from 'react'
+﻿import { useEffect, useState, useCallback } from 'react'
 import {
     Plus, Search, Trash2, Edit3, ChevronLeft, ChevronRight,
-    AlertCircle, Upload, X, Globe, FolderOpen, Users, Pencil, Check,
+    Upload, Globe, FolderOpen, Pencil, Check,
 } from 'lucide-react'
 import { ProxiesService } from '../services/apiService'
 import Select from '../components/Select'

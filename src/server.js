@@ -32,6 +32,7 @@ import groupRoutes from './routes/groupRoutes.js';
 import taskRoutes from './routes/taskRoutes.js';
 import workflowRoutes from './routes/workflowRoutes.js';
 import configRoutes from './routes/configRoutes.js';
+import dashboardRoutes from './routes/dashboardRoutes.js';
 import mlx from './services/mlxService.js';
 
 const app = express();
@@ -52,6 +53,7 @@ app.use('/api/groups', groupRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/workflows', workflowRoutes);
 app.use('/api/config', configRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
