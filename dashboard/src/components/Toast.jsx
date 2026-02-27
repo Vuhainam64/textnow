@@ -5,13 +5,15 @@ import { CheckCircle2, AlertCircle, XCircle, Info, X } from 'lucide-react'
 let toastRef = null
 
 // Strip leading emoji / icon characters from message
-const stripEmoji = (msg) =>
-    typeof msg === 'string'
-        ? msg.replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F000}-\u{1FFFF}✅❌⚠️🔍🛑🚨✨🔄👤ℹ️➕➖✔️\s]+/u, '').trim()
-        : msg;
+const stripEmoji = (msg) => {
+    if (typeof msg !== 'string') msg = String(msg ?? '');
+    return msg.replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F000}-\u{1FFFF}✅❌⚠️🔍🛑🚨✨🔄👤ℹ️➕➖✔️\s]+/u, '').trim();
+};
 
 export const showToast = (message, type = 'success') => {
-    if (toastRef) toastRef(stripEmoji(message), type)
+    const stripped = stripEmoji(message);
+    if (!stripped) return;   // skip empty
+    if (toastRef) toastRef(stripped, type);
 }
 
 export default function Toast() {

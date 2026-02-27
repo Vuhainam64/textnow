@@ -59,14 +59,53 @@ export default function WorkflowEditor(props) {
 function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
     const [nodes, setNodes, onNodesChange] = useNodesState(workflow.nodes || []);
 
-    // Migrate old edges: sourceHandle 'default' or null → 'true'
-    // (needed because nodes used to have a single 'default' handle, now they have 'true'/'false')
-    const migrateEdges = (rawEdges = []) => rawEdges.map(e => ({
-        ...e,
-        sourceHandle: (!e.sourceHandle || e.sourceHandle === 'default') ? 'true' : e.sourceHandle,
-    }));
+    // Danh sách taskNode chỉ có 1 đầu ra (handle 'default') — phải khớp với TaskNode.jsx
+    const SINGLE_OUTPUT_LABELS = [
+        'Chờ đợi', 'Khai báo biến', 'Cập nhật trạng thái',
+        'Xoá profile', 'Xoá profile local', 'Đóng trình duyệt', 'Xoá tất cả Mail',
+    ];
 
-    const [edges, setEdges, onEdgesChange] = useEdgesState(migrateEdges(workflow.edges));
+    /**
+     * normalizeEdges: chuẩn hoá sourceHandle cho edges
+     * - sourceNode (START): handle id = 'true'  → giữ 'true'
+     * - taskNode single-output: handle id = 'default' → giữ 'default'
+     * - taskNode branch (điều kiện, loop, click...): 'true'/'false' → giữ nguyên
+     * - null/undefined/sai → tự suy ra từ node type
+     * - Loại bỏ duplicate edges theo id
+     */
+    const normalizeEdges = (rawEdges = [], currentNodes = []) => {
+        const seen = new Set();
+        return rawEdges
+            .map(e => {
+                const sourceNode = currentNodes.find(n => n.id === e.source);
+                let sourceHandle = e.sourceHandle;
+
+                if (sourceNode?.type === 'sourceNode') {
+                    // START node luôn dùng handle 'true'
+                    sourceHandle = 'true';
+                } else if (sourceNode?.type === 'taskNode') {
+                    const isSingle = SINGLE_OUTPUT_LABELS.includes(sourceNode.data?.label);
+                    if (isSingle) {
+                        // Single-output: phải dùng 'default'
+                        sourceHandle = 'default';
+                    } else if (!sourceHandle || sourceHandle === 'default') {
+                        // Branch node không có handle → mặc định 'true'
+                        sourceHandle = 'true';
+                    }
+                    // Nếu đã là 'true' hoặc 'false' → giữ nguyên
+                }
+                return { ...e, sourceHandle };
+            })
+            .filter(e => {
+                if (seen.has(e.id)) return false;
+                seen.add(e.id);
+                return true;
+            });
+    };
+
+    const [edges, setEdges, onEdgesChange] = useEdgesState(
+        normalizeEdges(workflow.edges, workflow.nodes || [])
+    );
     const [selectedNode, setSelectedNode] = useState(null);
     const [showEditModal, setShowEditModal] = useState(false);
     const [editData, setEditData] = useState({ name: workflow.name, description: workflow.description || '' });
@@ -130,11 +169,14 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
         try {
             await WorkflowsService.update(workflow._id, {
                 nodes,
-                edges
+                edges: normalizeEdges(edges, nodes),
             });
-            if (!silent) showToast('✅ Đã lưu quy trình thành công');
             onUpdate();
-        } catch (e) { if (!silent) showToast(e.message, 'error'); }
+            if (!silent) showToast('Đã lưu quy trình thành công');
+        } catch (e) {
+            console.error('[handleSave]', e);
+            if (!silent) showToast(e.message || 'Lỗi khi lưu quy trình', 'error');
+        }
     };
 
     const handleRun = () => {
@@ -173,7 +215,13 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
             });
 
             socket.on('workflow-log', (newLog) => {
-                setLogs(prev => [...prev, { ...newLog, id: newLog.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}` }]);
+                setLogs(prev => [...prev, {
+                    ...newLog,
+                    id: newLog.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                    time: newLog.timestamp
+                        ? new Date(newLog.timestamp).toLocaleTimeString('vi-VN')
+                        : new Date().toLocaleTimeString('vi-VN'),
+                }]);
             });
 
             socket.on('workflow-status', (data) => {
@@ -386,7 +434,7 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                     return showToast('File JSON không hợp lệ (thiếu nodes/edges)', 'error');
                 }
                 setNodes(data.nodes);
-                setEdges(migrateEdges(data.edges));
+                setEdges(normalizeEdges(data.edges, data.nodes));
                 showToast(`✅ Đã nhập kịch bản: ${data.name || file.name}`);
             } catch {
                 showToast('❌ File JSON bị lỗi hoặc sai định dạng', 'error');
