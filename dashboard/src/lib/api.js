@@ -1,18 +1,19 @@
 /**
- * api.js - Axios instance cấu hình sẵn
- *
- * Development: Vite proxy /api → localhost:3000  (vite.config.js)
- * Production:  VITE_API_URL phải trỏ đến backend URL
- *              Ví dụ: VITE_API_URL=https://your-backend.onrender.com/api
- *
- * Set biến môi trường trên Vercel Dashboard:
- *   VITE_API_URL = https://your-backend.onrender.com/api
+ * api.js - Axios instance với dynamic base URL
+ * Base URL được lấy từ active VPS server (localStorage)
  */
 import axios from 'axios'
+import { getActiveBaseUrl } from './serverStore'
 
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || '/api',
     timeout: 30000,
+})
+
+// Request interceptor: inject base URL của server đang active
+// Mỗi request sẽ tự pick up URL mới khi user switch server
+api.interceptors.request.use((config) => {
+    config.baseURL = getActiveBaseUrl()
+    return config
 })
 
 // Response interceptor - chuẩn hóa lỗi, unwrap data

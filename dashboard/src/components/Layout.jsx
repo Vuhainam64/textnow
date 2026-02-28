@@ -17,6 +17,7 @@ import {
 import { useState, useEffect } from 'react'
 import { MLXService } from '../services/apiService'
 import SettingsModal from './SettingsModal'
+import ServerSwitcher from './ServerSwitcher'
 
 const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Tổng quan' },
@@ -143,7 +144,9 @@ function Header({ onShowSettings }) {
                 <p className="text-[10px] text-slate-500 font-medium">Multilogin • Playwright • MongoDB</p>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
+                {/* Server Switcher */}
+                <ServerSwitcher onChange={() => window.location.reload()} />
                 {/* Status badge */}
                 <div className="flex items-center gap-3">
                     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${agentConnected
