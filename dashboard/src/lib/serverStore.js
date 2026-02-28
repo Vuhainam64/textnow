@@ -3,36 +3,20 @@
  * 
  * Quản lý danh sách VPS server và server đang active.
  * Lưu vào localStorage để persist giữa các session.
- * 
- * Logic ưu tiên:
- *  - Development (npm run dev): luôn dùng '/api' (Vite proxy → localhost)
- *    trừ khi user đã chủ động switch sang server khác trong session này.
- *  - Production: dùng active server từ localStorage (hoặc VITE_API_URL).
  */
 
 const STORAGE_KEY = 'vps_servers'
 const ACTIVE_KEY = 'vps_active'
 
-const IS_DEV = import.meta.env.DEV
-
-// Server mặc định: dev dùng Vite proxy, production dùng VITE_API_URL
 const DEFAULT_SERVERS = [
     {
         id: 'local',
-        name: IS_DEV ? 'Local Dev' : 'Production',
-        url: IS_DEV ? '/api' : (import.meta.env.VITE_API_URL || '/api'),
-        color: IS_DEV ? '#6366f1' : '#10b981',
-        icon: IS_DEV ? '�' : '🚀',
+        name: 'Local Dev',
+        url: import.meta.env.VITE_API_URL || '/api',
+        color: '#6366f1',
+        icon: '🖥️',
     },
 ]
-
-/**
- * ID của server được user chủ động switch trong session hiện tại.
- * Chỉ tồn tại trong sessionStorage (reset khi đóng tab).
- * Ưu tiên cao hơn localStorage để dev mode không bị ảnh hưởng bởi
- * localStorage từ production.
- */
-const SESSION_ACTIVE_KEY = 'vps_active_session'
 
 /**
  * Đọc danh sách servers từ localStorage
@@ -56,29 +40,17 @@ export function saveServers(list) {
 }
 
 /**
- * Lấy active server ID.
- * - Trong dev: ưu tiên sessionStorage (user chủ động chọn trong tab này)
- *              fallback về 'local' (Local Dev / api)
- * - Trong prod: ưu tiên localStorage, fallback về server đầu tiên
+ * Lấy active server ID
  */
 export function getActiveServerId() {
-    if (IS_DEV) {
-        // Chỉ dùng selection của user nếu họ đã chủ động switch trong tab này
-        const sessionChoice = sessionStorage.getItem(SESSION_ACTIVE_KEY)
-        if (sessionChoice) return sessionChoice
-        // Default dev: luôn là 'local'
-        return 'local'
-    }
     return localStorage.getItem(ACTIVE_KEY) || getServers()[0]?.id
 }
 
 /**
- * Set active server (user chủ động chọn)
+ * Set active server
  */
 export function setActiveServerId(id) {
     localStorage.setItem(ACTIVE_KEY, id)
-    // Ghi vào sessionStorage để dev mode biết user đã chủ động switch
-    sessionStorage.setItem(SESSION_ACTIVE_KEY, id)
 }
 
 /**
@@ -91,10 +63,8 @@ export function getActiveServer() {
 }
 
 /**
- * Lấy base URL của active server.
- * Dev mode fallback cứng về '/api' nếu không tìm thấy server.
+ * Lấy base URL của active server
  */
 export function getActiveBaseUrl() {
-    const server = getActiveServer()
-    return server?.url || (IS_DEV ? '/api' : (import.meta.env.VITE_API_URL || '/api'))
+    return getActiveServer()?.url || '/api'
 }
