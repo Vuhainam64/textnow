@@ -120,19 +120,36 @@ export default function History() {
 
     // ── Real-time socket handlers ────────────────────────────────────────────
     const handleSocketLog = useCallback((entry) => {
-        setLogs(prev => {
-            const next = [...prev, entry];
-            // Also update thread logs directly from global log stream
-            if (entry.threadId) {
-                setThreads(t => {
-                    if (!t[entry.threadId]) return t;
-                    const updated = { ...t[entry.threadId] };
-                    updated.logs = [...(updated.logs || []), entry];
-                    return { ...t, [entry.threadId]: updated };
-                });
-            }
-            return next;
-        });
+        setLogs(prev => [...prev, entry]);
+
+        // Cap nhat log vao thread tuong ung
+        if (entry.threadId) {
+            setThreads(t => {
+                const existing = t[entry.threadId];
+                if (existing) {
+                    // Thread da co → append log
+                    return {
+                        ...t,
+                        [entry.threadId]: {
+                            ...existing,
+                            logs: [...(existing.logs || []), entry],
+                        }
+                    };
+                } else {
+                    // Thread CHUA co (log den som hon workflow-thread-update)
+                    // Tao placeholder de khong mat log
+                    return {
+                        ...t,
+                        [entry.threadId]: {
+                            user: entry.threadId,
+                            status: 'running',
+                            logs: [entry],
+                        }
+                    };
+                }
+            });
+        }
+
         requestAnimationFrame(() => logEndRef.current?.scrollIntoView({ behavior: 'smooth' }));
     }, []);
 

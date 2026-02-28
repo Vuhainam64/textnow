@@ -135,7 +135,6 @@ class WorkflowEngine {
                     ended_at: null,
                     logs: [],
                 };
-                exec.currentThreadId = threadId;
 
                 socketService.to(executionId).emit('workflow-thread-update', {
                     threadId,
@@ -258,7 +257,6 @@ class WorkflowEngine {
                     });
                 } finally {
                     activeThreads--;
-                    exec.currentThreadId = null;
                 }
             };
 
@@ -375,7 +373,7 @@ class WorkflowEngine {
         const exec = this.activeExecutions.get(executionId);
         if (!exec) return;
 
-        const effectiveThreadId = threadId || exec.currentThreadId || null;
+        const effectiveThreadId = threadId || null;
 
         const logEntry = {
             id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
