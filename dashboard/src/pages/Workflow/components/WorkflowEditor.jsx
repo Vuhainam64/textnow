@@ -113,6 +113,7 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
     const [selectedEdge, setSelectedEdge] = useState(null);
     const [selectionMode, setSelectionMode] = useState(false);
     const [selectedNodes, setSelectedNodes] = useState([]);
+    const [librarySearch, setLibrarySearch] = useState('');
     const [showHints, setShowHints] = useState(true);
 
     // Chup toan bo flow thanh anh PNG
@@ -736,8 +737,8 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                             onClick={() => setAutoFollow(v => !v)}
                             title={autoFollow ? 'Tắt theo dõi tự động' : 'Bật theo dõi tự động — màn hình di chuyển tới khối đang chạy'}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${autoFollow
-                                    ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                                    : 'bg-white/5 border-white/10 text-slate-500 hover:text-slate-300'
+                                ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                                : 'bg-white/5 border-white/10 text-slate-500 hover:text-slate-300'
                                 }`}
                         >
                             <Icons.Locate size={13} />
@@ -800,42 +801,70 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                 {/* Left Sidebar - Library */}
                 <aside className="w-64 glass border-r border-white/5 z-10 flex flex-col overflow-hidden shrink-0 text-slate-200">
                     <div className="p-4 border-b border-white/5 bg-white/[0.02]">
-                        <div className="flex items-center gap-2">
-                            <Binary size={14} className="text-purple-400" />
+                        <div className="flex items-center gap-2 mb-3">
+                            <Icons.Binary size={14} className="text-purple-400" />
                             <p className="text-[10px] font-bold text-slate-200 uppercase tracking-widest">Thư viện khối</p>
+                        </div>
+                        <div className="relative">
+                            <Icons.Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                            <input
+                                value={librarySearch}
+                                onChange={e => setLibrarySearch(e.target.value)}
+                                placeholder="Tìm khối..."
+                                className="w-full pl-7 pr-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-[11px] text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-purple-500/40 transition-all"
+                            />
+                            {librarySearch && (
+                                <button onClick={() => setLibrarySearch('')}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+                                    <Icons.X size={11} />
+                                </button>
+                            )}
                         </div>
                     </div>
                     <div className="p-4 space-y-6 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-slate-800">
-                        {[...new Set(NODE_TEMPLATES.filter(t => t.type !== 'sourceNode').map(t => t.category))].map(category => {
-                            const templates = NODE_TEMPLATES.filter(t => t.category === category);
-                            if (templates.length === 0) return null;
+                        {(() => {
+                            const q = librarySearch.toLowerCase().trim();
+                            const filtered = NODE_TEMPLATES.filter(t => t.type !== 'sourceNode' &&
+                                (!q || t.label?.toLowerCase().includes(q) || t.category?.toLowerCase().includes(q)));
 
-                            return (
-                                <div key={category} className="space-y-2.5">
-                                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] pl-1 border-l-2 border-white/5 ml-0.5">{category}</h3>
-                                    <div className="space-y-2">
-                                        {templates.map((tpl, i) => {
-                                            const Icon = Icons[tpl.icon] || Icons.MousePointer2;
-                                            return (
-                                                <button key={i}
-                                                    onClick={() => addNode(tpl)}
-                                                    draggable
-                                                    onDragStart={(event) => onDragStart(event, tpl.type, tpl)}
-                                                    className="w-full flex items-center gap-3 px-3 py-2 rounded-xl border border-white/5 bg-white/[0.01] hover:bg-white/5 hover:border-white/10 transition-all text-left group cursor-grab active:cursor-grabbing"
-                                                >
-                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${tpl.color} group-hover:scale-110 flex-shrink-0 shadow-lg`}>
-                                                        <Icon size={16} />
-                                                    </div>
-                                                    <div className="min-w-0">
-                                                        <p className="text-[11px] font-semibold text-slate-300 truncate">{tpl.label}</p>
-                                                    </div>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
+                            if (filtered.length === 0) return (
+                                <div className="flex flex-col items-center gap-2 py-8 text-slate-600">
+                                    <Icons.Search size={20} />
+                                    <p className="text-xs">Không tìm thấy khối</p>
                                 </div>
                             );
-                        })}
+
+                            // Group by category
+                            const categories = [...new Set(filtered.map(t => t.category))];
+                            return categories.map(category => {
+                                const templates = filtered.filter(t => t.category === category);
+                                return (
+                                    <div key={category} className="space-y-2.5">
+                                        <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] pl-1 border-l-2 border-white/5 ml-0.5">{category}</h3>
+                                        <div className="space-y-2">
+                                            {templates.map((tpl, i) => {
+                                                const Icon = Icons[tpl.icon] || Icons.MousePointer2;
+                                                return (
+                                                    <button key={i}
+                                                        onClick={() => addNode(tpl)}
+                                                        draggable
+                                                        onDragStart={(event) => onDragStart(event, tpl.type, tpl)}
+                                                        className="w-full flex items-center gap-3 px-3 py-2 rounded-xl border border-white/5 bg-white/[0.01] hover:bg-white/5 hover:border-white/10 transition-all text-left group cursor-grab active:cursor-grabbing"
+                                                    >
+                                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${tpl.color} group-hover:scale-110 flex-shrink-0 shadow-lg`}>
+                                                            <Icon size={16} />
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <p className="text-[11px] font-semibold text-slate-300 truncate">{tpl.label}</p>
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                );
+                            });
+                        })()}
                     </div>
                 </aside>
 
