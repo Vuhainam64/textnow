@@ -113,7 +113,7 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
     const [selectedEdge, setSelectedEdge] = useState(null);
     const [selectionMode, setSelectionMode] = useState(false);
     const [selectedNodes, setSelectedNodes] = useState([]);
-    const [librarySearch, setLibrarySearch] = useState('');
+    const [librarySearch, setLibrarySearch] = useState(null);
     const [showHints, setShowHints] = useState(true);
 
     // Chup toan bo flow thanh anh PNG
@@ -801,29 +801,38 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                 {/* Left Sidebar - Library */}
                 <aside className="w-64 glass border-r border-white/5 z-10 flex flex-col overflow-hidden shrink-0 text-slate-200">
                     <div className="p-4 border-b border-white/5 bg-white/[0.02]">
-                        <div className="flex items-center gap-2 mb-3">
+                        <div className="flex items-center gap-2">
                             <Icons.Binary size={14} className="text-purple-400" />
-                            <p className="text-[10px] font-bold text-slate-200 uppercase tracking-widest">Thư viện khối</p>
+                            <p className="text-[10px] font-bold text-slate-200 uppercase tracking-widest flex-1">Thư viện khối</p>
+                            <button
+                                onClick={() => { setLibrarySearch(s => s === null ? '' : null); }}
+                                className={`p-1 rounded-lg transition-all ${librarySearch !== null ? 'text-purple-400 bg-purple-500/10' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}
+                                title="Tìm kiếm khối">
+                                <Icons.Search size={13} />
+                            </button>
                         </div>
-                        <div className="relative">
-                            <Icons.Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
-                            <input
-                                value={librarySearch}
-                                onChange={e => setLibrarySearch(e.target.value)}
-                                placeholder="Tìm khối..."
-                                className="w-full pl-7 pr-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-[11px] text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-purple-500/40 transition-all"
-                            />
-                            {librarySearch && (
-                                <button onClick={() => setLibrarySearch('')}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
-                                    <Icons.X size={11} />
-                                </button>
-                            )}
-                        </div>
+                        {librarySearch !== null && (
+                            <div className="relative mt-2.5">
+                                <Icons.Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+                                <input
+                                    autoFocus
+                                    value={librarySearch}
+                                    onChange={e => setLibrarySearch(e.target.value)}
+                                    placeholder="Tìm khối..."
+                                    className="w-full pl-7 pr-7 py-1.5 bg-white/5 border border-white/10 rounded-lg text-[11px] text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-purple-500/40 transition-all"
+                                />
+                                {librarySearch && (
+                                    <button onClick={() => setLibrarySearch('')}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+                                        <Icons.X size={11} />
+                                    </button>
+                                )}
+                            </div>
+                        )}
                     </div>
                     <div className="p-4 space-y-6 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-slate-800">
                         {(() => {
-                            const q = librarySearch.toLowerCase().trim();
+                            const q = librarySearch ? librarySearch.toLowerCase().trim() : '';
                             const filtered = NODE_TEMPLATES.filter(t => t.type !== 'sourceNode' &&
                                 (!q || t.label?.toLowerCase().includes(q) || t.category?.toLowerCase().includes(q)));
 
