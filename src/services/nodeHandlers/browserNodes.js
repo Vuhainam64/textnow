@@ -7,7 +7,6 @@
 import Account from '../../models/Account.js';
 import mlx from '../mlxService.js';
 import { connectBrowser, getPage } from '../browserService.js';
-import axios from 'axios';
 
 export async function handleTaoProfile(executionId, config, context, engine) {
     const profileName = `${context.account.textnow_user}_${Date.now()}`;
@@ -132,29 +131,34 @@ export async function handleCapNhatTrangThai(executionId, config, context, engin
 }
 
 /**
- * Kiểm tra Captcha: gọi API TextNow
+ * Kiểm tra Captcha: gọi API TextNow qua page.request (dùng session/cookie của browser)
  * → 403 = có captcha (return false)
  * → 200/other = không có captcha (return true)
  */
 export async function handleKiemTraCaptcha(executionId, config, context, engine) {
+    if (!context.page) {
+        engine._log(executionId, `   Trình duyệt chưa mở`, 'error');
+        return false;
+    }
     const apiUrl = engine._resolveValue(
         config.api_url || 'https://www.textnow.com/api/emails/auth/{{email}}',
         context
     );
-    engine._log(executionId, `   + Kiem tra captcha qua API: ${apiUrl}`);
+    engine._log(executionId, `   + Kiểm tra captcha qua browser session: ${apiUrl}`);
     try {
-        const res = await axios.get(apiUrl, {
+        // Gọi từ browser context → có cookie/session của TextNow
+        const res = await context.page.request.get(apiUrl, {
             timeout: (parseInt(config.timeout) || 15) * 1000,
-            validateStatus: () => true,   // không throw khi 4xx/5xx
         });
-        if (res.status === 403) {
-            engine._log(executionId, `   - Phat hien Captcha (403). Can giai captcha.`, 'warning');
+        const status = res.status();
+        if (status === 403) {
+            engine._log(executionId, `   - Phát hiện Captcha (403). Cần giải captcha.`, 'warning');
             return false;   // → nhánh FALSE: có captcha
         }
-        engine._log(executionId, `   + Khong co captcha (${res.status}). Tiep tuc.`);
+        engine._log(executionId, `   + Không có captcha (${status}). Tiếp tục.`);
         return true;        // → nhánh TRUE: không có captcha
     } catch (err) {
-        engine._log(executionId, `   - Loi goi API kiem tra captcha: ${err.message}`, 'error');
+        engine._log(executionId, `   - Lỗi gọi API kiểm tra captcha: ${err.message}`, 'error');
         return false;
     }
 }
