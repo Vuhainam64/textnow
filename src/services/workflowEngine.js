@@ -294,33 +294,33 @@ class WorkflowEngine {
 
     /**
      * _runNodeLogic: Dispatcher - chuyển sang handler tương ứng theo label
-     * Mỗi handler nằm trong src/services/nodeHandlers/
+     * Labels phải khớp CHÍNH XÁC với constants.js trong dashboard
      */
     async _runNodeLogic(executionId, node, context) {
         const { label, config } = node.data;
         switch (label) {
-            // ── Logic ───────────────────────────────────────────────────────
-            case 'Khai bao bien': return handleKhaiBaoBien(executionId, config, context, this);
-            case 'Lap lai': return handleLapLai(executionId, config, context, node, this);
-            case 'Dieu kien': return handleDieuKien(executionId, config, context, this);
-            case 'Cho doi': return handleChoDoi(executionId, config, context, this);
-            // ── Browser / Profile ────────────────────────────────────────────
-            case 'Tao profile moi': return handleTaoProfile(executionId, config, context, this);
-            case 'Mo trinh duyet': return handleMoTrinhDuyet(executionId, config, context, this);
-            case 'Mo trang web': return handleMoTrangWeb(executionId, config, context, this);
-            case 'Click chuot': return handleClickChuot(executionId, config, context, this);
-            case 'Nhap van ban': return handleNhapVanBan(executionId, config, context, this);
-            case 'Dong trinh duyet': return handleDongTrinhDuyet(executionId, config, context, this);
-            case 'Xoa profile': return handleXoaProfile(executionId, config, context, this);
-            case 'Xoa profile local': return handleXoaProfileLocal(executionId, config, context, this);
-            case 'Cap nhat trang thai': return handleCapNhatTrangThai(executionId, config, context, this);
-            // ── Email ────────────────────────────────────────────────────────
-            case 'Kiem tra Email': return handleKiemTraEmail(executionId, config, context, this);
-            case 'Doc Email': return handleDocEmail(executionId, config, context, this);
-            case 'Xoa tat ca Mail': return handleXoaMail(executionId, config, context, this);
+            // ── Logic ─────────────────────────────────────────────────────────
+            case 'Khai báo biến': return handleKhaiBaoBien(executionId, config, context, this);
+            case 'Lặp lại': return handleLapLai(executionId, config, context, node, this);
+            case 'Điều kiện': return handleDieuKien(executionId, config, context, this);
+            case 'Chờ đợi': return handleChoDoi(executionId, config, context, this);
+            // ── Browser / Profile ─────────────────────────────────────────────
+            case 'Tạo profile mới': return handleTaoProfile(executionId, config, context, this);
+            case 'Mở trình duyệt': return handleMoTrinhDuyet(executionId, config, context, this);
+            case 'Mở trang web': return handleMoTrangWeb(executionId, config, context, this);
+            case 'Click chuột': return handleClickChuot(executionId, config, context, this);
+            case 'Nhập văn bản': return handleNhapVanBan(executionId, config, context, this);
+            case 'Đóng trình duyệt': return handleDongTrinhDuyet(executionId, config, context, this);
+            case 'Xoá profile': return handleXoaProfile(executionId, config, context, this);
+            case 'Xoá profile local': return handleXoaProfileLocal(executionId, config, context, this);
+            case 'Cập nhật trạng thái': return handleCapNhatTrangThai(executionId, config, context, this);
+            // ── Email ─────────────────────────────────────────────────────────
+            case 'Kiểm tra Email': return handleKiemTraEmail(executionId, config, context, this);
+            case 'Đọc Email': return handleDocEmail(executionId, config, context, this);
+            case 'Xoá tất cả Mail': return handleXoaMail(executionId, config, context, this);
 
             default:
-                this._log(executionId, `   Khoi "${label}" chua duoc ho tro logic thuc thi. Bo qua.`, 'warning');
+                this._log(executionId, `   ⚠️ Khối "${label}" chưa được hỗ trợ. Bỏ qua.`, 'warning');
         }
     }
 
