@@ -80,12 +80,18 @@ async function bootstrap() {
     // 1. Kết nối MongoDB
     await connectDB();
 
-    // Migration: xoa unique index host+port cua proxies (cho phep trung)
+    // Migration: xoa unique index cua proxies va accounts (cho phep trung)
     try {
         const { default: Proxy } = await import('./models/Proxy.js');
         await Proxy.collection.dropIndex('host_1_port_1');
         console.log('[Migration] Da xoa unique index host:port cua proxies');
-    } catch { /* index chua ton tai hoac da xoa roi → bo qua */ }
+    } catch { /* da xoa roi hoac chua ton tai → bo qua */ }
+
+    try {
+        const { default: Account } = await import('./models/Account.js');
+        await Account.collection.dropIndex('textnow_user_1');
+        console.log('[Migration] Da xoa unique index textnow_user cua accounts');
+    } catch { /* da xoa roi hoac chua ton tai → bo qua */ }
 
     // 2. Login MLX 1 lần duy nhất (giữ token cho suốt phiên chạy)
     try {

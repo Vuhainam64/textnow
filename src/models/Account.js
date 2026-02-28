@@ -22,7 +22,6 @@ const accountSchema = new mongoose.Schema(
         textnow_user: {
             type: String,
             required: true,
-            unique: true,
             trim: true,
             index: true,
         },
