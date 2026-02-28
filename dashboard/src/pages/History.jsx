@@ -6,7 +6,7 @@ import {
     Zap, Layers, Settings2, Terminal, List, LayoutGrid,
     AlertCircle, AlertTriangle, User, ChevronDown
 } from 'lucide-react';
-import { WorkflowsService, MLXService } from '../services/apiService';
+import { WorkflowsService } from '../services/apiService';
 import { showToast } from '../components/Toast';
 import { useExecutionSocket } from '../hooks/useExecutionSocket';
 
@@ -252,7 +252,7 @@ export default function History() {
     const handleStopAll = async () => {
         setStoppingAll(true);
         try {
-            await MLXService.stopAllProfiles();
+            await fetch('/api/mlx/profiles/stop-all', { method: 'POST' });
             showToast('Đã dừng tất cả tiến trình mimic', 'warning');
         } catch (e) {
             showToast(e.message, 'error');
