@@ -891,6 +891,7 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                         multiSelectionKeyCode="Control"
                         deleteKeyCode="Delete"
                         fitView className="bg-[#0f1117]"
+                        proOptions={{ hideAttribution: true }}
                         defaultEdgeOptions={{ animated: true, style: { strokeWidth: 3 } }}
                     >
                         {showHints && (
