@@ -3,7 +3,7 @@ import Proxy from '../models/Proxy.js';
 import socketService from './socketService.js';
 // Node handlers — each file handles a category of workflow blocks
 import { handleKhaiBaoBien, handleLapLai, handleDieuKien, handleChoDoi } from './nodeHandlers/logicNodes.js';
-import { handleTaoProfile, handleMoTrinhDuyet, handleMoTrangWeb, handleClickChuot, handleNhapVanBan, handleDongTrinhDuyet, handleXoaProfile, handleXoaProfileLocal, handleCapNhatTrangThai, handleKiemTraCaptcha, handleGiaiCaptcha } from './nodeHandlers/browserNodes.js';
+import { handleTaoProfile, handleMoTrinhDuyet, handleMoTrangWeb, handleClickChuot, handleNhapVanBan, handleDongTrinhDuyet, handleXoaProfile, handleXoaProfileLocal, handleCapNhatTrangThai, handleKiemTraCaptcha, handleGiaiCaptcha, handleSubmitKiemTraCaptcha } from './nodeHandlers/browserNodes.js';
 import { handleKiemTraEmail, handleDocEmail, handleXoaMail } from './nodeHandlers/emailNodes.js';
 
 class WorkflowEngine {
@@ -316,6 +316,7 @@ class WorkflowEngine {
             case 'Cập nhật trạng thái': return handleCapNhatTrangThai(executionId, config, context, this);
             case 'Kiểm tra Captcha': return handleKiemTraCaptcha(executionId, config, context, this);
             case 'Giải Captcha': return handleGiaiCaptcha(executionId, config, context, this);
+            case 'Submit & Kiểm tra Captcha': return handleSubmitKiemTraCaptcha(executionId, config, context, this);
             // ── Email ─────────────────────────────────────────────────────────
             case 'Kiểm tra Email': return handleKiemTraEmail(executionId, config, context, this);
             case 'Đọc Email': return handleDocEmail(executionId, config, context, this);

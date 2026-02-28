@@ -21,6 +21,7 @@ export const NODE_TEMPLATES = [
     { type: 'taskNode', label: 'Chờ đợi', category: 'Thao tác', icon: 'Clock', color: 'bg-slate-500/20 text-slate-400', config: { seconds: 5, timeout: 60 } },
 
     // Category: Captcha
+    { type: 'taskNode', label: 'Submit & Kiểm tra Captcha', category: 'Captcha', icon: 'MousePointerClick', color: 'bg-rose-500/20 text-rose-400', config: { selector: 'button[type="submit"]', api_url: 'https://www.textnow.com/api/emails/auth/{{email}}', wait_ms: 1000, timeout: 15 } },
     { type: 'taskNode', label: 'Kiểm tra Captcha', category: 'Captcha', icon: 'ShieldCheck', color: 'bg-rose-500/20 text-rose-400', config: { api_url: 'https://www.textnow.com/api/emails/auth/{{email}}', timeout: 15 } },
     { type: 'taskNode', label: 'Giải Captcha', category: 'Captcha', icon: 'ShieldAlert', color: 'bg-orange-500/20 text-orange-400', config: { type: 'hCaptcha', site_key: '', timeout: 120 } },
 

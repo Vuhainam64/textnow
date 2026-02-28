@@ -131,6 +131,58 @@ export async function handleCapNhatTrangThai(executionId, config, context, engin
 }
 
 /**
+ * Submit & Kiểm tra Captcha (block gộp)
+ * 1. Click vào nút submit
+ * 2. Chờ wait_ms (mặc định 1s) để request xử lý
+ * 3. Gọi API qua page.request (cùng session browser)
+ * → TRUE  = không captcha → tiếp tục
+ * → FALSE = có captcha (403) → sang nhánh Giải Captcha
+ */
+export async function handleSubmitKiemTraCaptcha(executionId, config, context, engine) {
+    if (!context.page) {
+        engine._log(executionId, `   Trình duyệt chưa mở`, 'error');
+        return false;
+    }
+
+    const selector = engine._resolveValue(config.selector || 'button[type="submit"]', context);
+    const apiUrl = engine._resolveValue(config.api_url || 'https://www.textnow.com/api/emails/auth/{{email}}', context);
+    const waitMs = parseInt(config.wait_ms) || 1000;
+    const timeoutMs = (parseInt(config.timeout) || 15) * 1000;
+
+    // 1. Click submit
+    try {
+        await context.page.waitForSelector(selector, { timeout: 10000 });
+        await context.page.click(selector);
+        engine._log(executionId, `   + Đã click submit: ${selector}`);
+    } catch (err) {
+        engine._log(executionId, `   - Không click được submit: ${err.message}`, 'error');
+        return false;
+    }
+
+    // 2. Chờ request xử lý
+    if (waitMs > 0) {
+        engine._log(executionId, `   + Chờ ${waitMs}ms để request xử lý...`);
+        await engine._wait(executionId, waitMs);
+    }
+
+    // 3. Kiểm tra captcha qua page.request (có session/cookie)
+    try {
+        engine._log(executionId, `   + Kiểm tra captcha: ${apiUrl}`);
+        const res = await context.page.request.get(apiUrl, { timeout: timeoutMs });
+        const status = res.status();
+        if (status === 403) {
+            engine._log(executionId, `   - Phát hiện Captcha (403) → cần giải.`, 'warning');
+            return false;
+        }
+        engine._log(executionId, `   + Không có captcha (${status}) → tiếp tục.`);
+        return true;
+    } catch (err) {
+        engine._log(executionId, `   - Lỗi kiểm tra captcha: ${err.message}`, 'error');
+        return false;
+    }
+}
+
+/**
  * Kiểm tra Captcha: gọi API TextNow qua page.request (dùng session/cookie của browser)
  * → 403 = có captcha (return false)
  * → 200/other = không có captcha (return true)
