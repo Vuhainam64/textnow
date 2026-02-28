@@ -1,7 +1,7 @@
-﻿import { useEffect, useState, useCallback, useRef } from 'react'
+﻿import { useEffect, useState, useCallback } from 'react'
 import {
     Plus, Search, Trash2, Edit3, ChevronLeft, ChevronRight,
-    Upload, X, AlertCircle, Users, FolderOpen, Pencil, Check, FileText, Download
+    Upload, X, AlertCircle, Users, FolderOpen, Pencil, Check, Download
 } from 'lucide-react'
 import { AccountsService } from '../services/apiService'
 import Select from '../components/Select'
@@ -11,7 +11,8 @@ import StatusBadge from '../components/StatusBadge'
 import GroupForm from '../components/GroupForm'
 import ConfirmModal from '../components/MLX/ConfirmModal'
 import { showToast } from '../components/Toast'
-
+import AccountImportModal from './Accounts/ImportModal'
+import AccountExportModal from './Accounts/ExportModal'
 
 
 // ─── Account Form ─────────────────────────────────────────────────────────────
@@ -122,8 +123,7 @@ export default function Accounts() {
     const [showImport, setShowImport] = useState(false)
     const [importText, setImportText] = useState('')
     const [importLoading, setImportLoading] = useState(false)
-    const [importProgress, setImportProgress] = useState(null) // { done, total, inserted }
-    const fileInputRef = useRef(null)
+    const [importProgress, setImportProgress] = useState(null)
     const [deleteAccountTarget, setDeleteAccountTarget] = useState(null)
     const [stats, setStats] = useState([])
     const [showDeleteAll, setShowDeleteAll] = useState(false)
@@ -297,14 +297,6 @@ export default function Accounts() {
         finally { setImportLoading(false); setImportProgress(null); }
     }
 
-    const handleFileSelect = (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => setImportText(ev.target.result);
-        reader.readAsText(file, 'utf-8');
-        e.target.value = '';
-    }
 
     const handleExport = async () => {
         setExportLoading(true)
@@ -367,65 +359,17 @@ export default function Accounts() {
                 />
             )}
 
-            {/* ── Export Modal ─── */}
-            {showExport && (
-                <Modal title="Xuất tài khoản" onClose={() => setShowExport(false)}>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="text-xs text-slate-500 mb-2 block font-medium">Lọc theo trạng thái <span className="text-slate-600">(bỏ trống = tất cả)</span></label>
-                            <div className="flex flex-wrap gap-2">
-                                {['pending', 'active', 'inactive', 'banned', 'die_mail', 'no_mail', 'verified', 'Reset Error'].map(s => {
-                                    const cfg = STATUS_MAP[s] || { label: s }
-                                    const active = exportStatus.includes(s)
-                                    return (
-                                        <button key={s} onClick={() => setExportStatus(prev =>
-                                            active ? prev.filter(x => x !== s) : [...prev, s]
-                                        )}
-                                            className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${active ? 'bg-blue-600/20 border-blue-500/40 text-blue-300' : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/20'
-                                                }`}>
-                                            {cfg.label || s}
-                                        </button>
-                                    )
-                                })}
-                            </div>
-                        </div>
-
-                        {currentGroup && (
-                            <p className="text-[11px] text-emerald-400">→ Chỉ xuất trong nhóm: <span className="font-semibold">{currentGroup.name}</span></p>
-                        )}
-
-                        {/* Export & delete toggle */}
-                        <label className="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all
-                            hover:border-white/20 border-white/10">
-                            <div className={`w-9 h-5 rounded-full transition-colors relative ${exportDeleteAfter ? 'bg-red-500' : 'bg-white/10'
-                                }`}
-                                onClick={() => setExportDeleteAfter(v => !v)}>
-                                <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${exportDeleteAfter ? 'translate-x-4' : ''
-                                    }`} />
-                            </div>
-                            <div>
-                                <p className="text-sm font-medium text-slate-200">Xuất xong rồi xóa</p>
-                                <p className="text-[11px] text-slate-500">Tự động xóa các tài khoản đã xuất khỏi database</p>
-                            </div>
-                        </label>
-
-                        {exportDeleteAfter && (
-                            <div className="p-2.5 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-400">
-                                ⚠️ Cảnh báo: Sau khi xuất, các tài khoản sẽ bị xóa vĩnh viễn!
-                            </div>
-                        )}
-
-                        <div className="flex justify-end gap-2 pt-1">
-                            <button onClick={() => setShowExport(false)} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Huỷ</button>
-                            <button onClick={handleExport} disabled={exportLoading}
-                                className={`px-5 py-2 rounded-xl text-sm font-medium text-white disabled:opacity-60 transition-all flex items-center gap-2 ${exportDeleteAfter ? 'bg-red-600 hover:bg-red-500' : 'bg-emerald-600 hover:bg-emerald-500'
-                                    }`}>
-                                {exportLoading ? 'Đang xuất...' : <><Download size={14} /> Xuất{exportDeleteAfter ? ' & Xóa' : ''}</>}
-                            </button>
-                        </div>
-                    </div>
-                </Modal>
-            )}
+            <AccountExportModal
+                show={showExport}
+                onClose={() => setShowExport(false)}
+                exportStatus={exportStatus}
+                setExportStatus={setExportStatus}
+                exportDeleteAfter={exportDeleteAfter}
+                setExportDeleteAfter={setExportDeleteAfter}
+                exportLoading={exportLoading}
+                onExport={handleExport}
+                currentGroup={currentGroup}
+            />
 
             {(showGroupForm || editingGroup) && (
                 <Modal title={editingGroup ? 'Sửa nhóm' : 'Tạo nhóm mới'} onClose={() => { setShowGroupForm(false); setEditingGroup(null) }}>
@@ -560,59 +504,16 @@ export default function Accounts() {
                     <AccountForm initial={editing} groups={groups} groupId={editing.group_id} onSave={handleUpdate} onClose={() => setEditing(null)} />
                 </Modal>
             )}
-            {showImport && (
-                <Modal title="Nhập hàng loạt tài khoản" onClose={() => { setShowImport(false); setImportText(''); setImportProgress(null); }}>
-                    <div className="space-y-3">
-                        <div className="p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl space-y-2">
-                            <p className="text-[11px] text-slate-400 font-medium">Hỗ trợ 2 định dạng (dùng dấu <code className="text-blue-400 font-bold">|</code> để ngăn cách):</p>
-                            <ul className="text-[10px] text-slate-500 space-y-1 list-disc pl-4">
-                                <li><span className="text-slate-300">6 cột:</span> <code className="text-blue-400/80">tn_user|tn_pass|hm_user|hm_pass|hm_token|client_id</code></li>
-                                <li><span className="text-slate-300">4 cột:</span> <code className="text-blue-400/80">hm_user|hm_pass|hm_token|client_id</code> (Tự động lấy hm làm tn)</li>
-                            </ul>
-                            {currentGroup && <p className="text-[10px] text-emerald-400 font-medium pt-1">→ Tài khoản sẽ được thêm vào nhóm: <span className="underline">{currentGroup.name}</span></p>}
-                        </div>
-
-                        {/* File upload + line count */}
-                        <div className="flex items-center gap-2">
-                            <input ref={fileInputRef} type="file" accept=".txt,.csv" className="hidden" onChange={handleFileSelect} />
-                            <button onClick={() => fileInputRef.current?.click()}
-                                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 text-xs hover:bg-white/10 transition-all">
-                                <FileText size={13} /> Chọn file .txt
-                            </button>
-                            {importText && (() => {
-                                const count = importText.trim().split('\n').filter(Boolean).length;
-                                return <span className="text-xs text-slate-500">{count.toLocaleString()} dòng</span>;
-                            })()}
-                        </div>
-
-                        <textarea rows={10} value={importText} onChange={e => setImportText(e.target.value)}
-                            className="w-full bg-[#0f1117] border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 placeholder:text-slate-700 focus:outline-none focus:border-blue-500/40 resize-none scrollbar-thin scrollbar-thumb-slate-800"
-                            placeholder="user|pass|email@hotmail.com|pass|token|clientid&#10;email@hotmail.com|pass|token|clientid" />
-
-                        {/* Progress bar */}
-                        {importProgress && (
-                            <div className="space-y-1.5">
-                                <div className="flex justify-between text-[10px] text-slate-500">
-                                    <span>Batch {Math.ceil(importProgress.done / 500)}/{Math.ceil(importProgress.total / 500)}</span>
-                                    <span>{importProgress.inserted} đã nhập</span>
-                                </div>
-                                <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-                                    <div className="h-full bg-blue-500 rounded-full transition-all duration-300"
-                                        style={{ width: `${(importProgress.done / importProgress.total) * 100}%` }} />
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="flex justify-end gap-2">
-                            <button onClick={() => { setShowImport(false); setImportText(''); }} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Huỷ</button>
-                            <button onClick={handleImport} disabled={importLoading || !importText.trim()}
-                                className="px-5 py-2 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-60 transition-all">
-                                {importLoading ? `Đang nhập...` : `Nhập tài khoản`}
-                            </button>
-                        </div>
-                    </div>
-                </Modal>
-            )}
+            <AccountImportModal
+                show={showImport}
+                onClose={() => { setShowImport(false); setImportProgress(null); }}
+                importText={importText}
+                setImportText={setImportText}
+                importLoading={importLoading}
+                importProgress={importProgress}
+                onImport={handleImport}
+                currentGroup={currentGroup}
+            />
 
             {/* ── SIDEBAR ──────────────────────────────────── */}
             <aside className="w-56 flex-shrink-0 flex flex-col gap-2 sticky top-6 h-fit">
