@@ -131,105 +131,63 @@ export async function handleCapNhatTrangThai(executionId, config, context, engin
 }
 
 /**
- * Submit & Kiểm tra Captcha (block gộp)
- * 1. Click vào nút submit
- * 2. Chờ wait_ms (mặc định 1s) để request xử lý
- * 3. Gọi API qua page.request (cùng session browser)
- * → TRUE  = không captcha → tiếp tục
- * → FALSE = có captcha (403) → sang nhánh Giải Captcha
+ * PerimeterX — Click submit và kiểm tra challenge qua API
+ *
+ * Luồng:
+ *   1. Click vào `selector` (nút submit)
+ *   2. Chờ `wait_ms` để request xử lý (mặc định 1500ms)
+ *   3. Gọi `api_url` qua page.request (cùng session/cookie browser)
+ *      → 403  = PerimeterX chặn (return FALSE)
+ *      → khác = không bị chặn   (return TRUE)
+ *
+ * Config:
+ *   selector  — CSS selector nút cần click     (vd: button[type="submit"])
+ *   api_url   — URL để check challenge         (vd: https://...auth/{{email}})
+ *   wait_ms   — ms chờ sau click               (default: 1500)
+ *   timeout   — timeout gọi API (giây)         (default: 20)
  */
-export async function handleSubmitKiemTraCaptcha(executionId, config, context, engine) {
+export async function handlePerimeterX(executionId, config, context, engine) {
     if (!context.page) {
         engine._log(executionId, `   Trình duyệt chưa mở`, 'error');
         return false;
     }
 
     const selector = engine._resolveValue(config.selector || 'button[type="submit"]', context);
-    const apiUrl = engine._resolveValue(config.api_url || 'https://www.textnow.com/api/emails/auth/{{email}}', context);
-    const waitMs = parseInt(config.wait_ms) || 1000;
-    const timeoutMs = (parseInt(config.timeout) || 15) * 1000;
+    const apiUrl = engine._resolveValue(config.api_url || '', context);
+    const waitMs = parseInt(config.wait_ms) || 1500;
+    const timeoutMs = (parseInt(config.timeout) || 20) * 1000;
+
+    if (!apiUrl) {
+        engine._log(executionId, `   - PerimeterX: api_url bị trống`, 'error');
+        return false;
+    }
 
     // 1. Click submit
     try {
         await context.page.waitForSelector(selector, { timeout: 10000 });
         await context.page.click(selector);
-        engine._log(executionId, `   + Đã click submit: ${selector}`);
+        engine._log(executionId, `   + Đã click: ${selector}`);
     } catch (err) {
-        engine._log(executionId, `   - Không click được submit: ${err.message}`, 'error');
+        engine._log(executionId, `   - Không click được "${selector}": ${err.message}`, 'error');
         return false;
     }
 
     // 2. Chờ request xử lý
-    if (waitMs > 0) {
-        engine._log(executionId, `   + Chờ ${waitMs}ms để request xử lý...`);
-        await engine._wait(executionId, waitMs);
-    }
+    engine._log(executionId, `   + Chờ ${waitMs}ms...`);
+    await engine._wait(executionId, waitMs);
 
-    // 3. Kiểm tra captcha qua page.request (có session/cookie)
+    // 3. Check PerimeterX qua page.request (có session/cookie)
     try {
-        engine._log(executionId, `   + Kiểm tra captcha: ${apiUrl}`);
         const res = await context.page.request.get(apiUrl, { timeout: timeoutMs });
         const status = res.status();
         if (status === 403) {
-            engine._log(executionId, `   - Phát hiện Captcha (403) → cần giải.`, 'warning');
+            engine._log(executionId, `   - PerimeterX phát hiện (403) → nhánh FALSE`, 'warning');
             return false;
         }
-        engine._log(executionId, `   + Không có captcha (${status}) → tiếp tục.`);
+        engine._log(executionId, `   + Không bị chặn (${status}) → nhánh TRUE`);
         return true;
     } catch (err) {
-        engine._log(executionId, `   - Lỗi kiểm tra captcha: ${err.message}`, 'error');
+        engine._log(executionId, `   - Lỗi kiểm tra PerimeterX: ${err.message}`, 'error');
         return false;
     }
-}
-
-/**
- * Kiểm tra Captcha: gọi API TextNow qua page.request (dùng session/cookie của browser)
- * → 403 = có captcha (return false)
- * → 200/other = không có captcha (return true)
- */
-export async function handleKiemTraCaptcha(executionId, config, context, engine) {
-    if (!context.page) {
-        engine._log(executionId, `   Trình duyệt chưa mở`, 'error');
-        return false;
-    }
-    const apiUrl = engine._resolveValue(
-        config.api_url || 'https://www.textnow.com/api/emails/auth/{{email}}',
-        context
-    );
-    engine._log(executionId, `   + Kiểm tra captcha qua browser session: ${apiUrl}`);
-    try {
-        // Gọi từ browser context → có cookie/session của TextNow
-        const res = await context.page.request.get(apiUrl, {
-            timeout: (parseInt(config.timeout) || 15) * 1000,
-        });
-        const status = res.status();
-        if (status === 403) {
-            engine._log(executionId, `   - Phát hiện Captcha (403). Cần giải captcha.`, 'warning');
-            return false;   // → nhánh FALSE: có captcha
-        }
-        engine._log(executionId, `   + Không có captcha (${status}). Tiếp tục.`);
-        return true;        // → nhánh TRUE: không có captcha
-    } catch (err) {
-        engine._log(executionId, `   - Lỗi gọi API kiểm tra captcha: ${err.message}`, 'error');
-        return false;
-    }
-}
-
-/**
- * Giai Captcha: dùng code captcha có sẵn của user
- * Thành công → true, thất bại → false
- */
-export async function handleGiaiCaptcha(executionId, config, context, engine) {
-    if (!context.page) {
-        engine._log(executionId, `   Trinh duyet chua duoc mo`, 'error');
-        return false;
-    }
-    engine._log(executionId, `   + Dang giai captcha (type: ${config.type || 'hCaptcha'})...`);
-    // TODO: gọn code giải captcha của bạn vào đây
-    // context.page sẵn sàng để interact
-    // Ví dụ vờii 2captcha:
-    //   const token = await solve2Captcha(config.site_key, context.page.url())
-    //   await context.page.evaluate((t) => { window.captchaToken = t }, token)
-    engine._log(executionId, `   + Chua implement giai captcha. Cho ban them code vao.`, 'warning');
-    return false;
 }
