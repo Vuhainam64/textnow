@@ -104,20 +104,7 @@ class WorkflowEngine {
             const processAccount = async (account, i) => {
                 const threadId = account.textnow_user;
 
-                // Stagger: chờ i * startup_delay giây trước khi bắt đầu
-                if (startup_delay > 0 && i > 0) {
-                    const delay = i * startup_delay * 1000;
-                    this._log(executionId, `[Luong ${i + 1}] Cho ${startup_delay}s truoc khi khoi dong...`, 'default', threadId);
-                    await new Promise((resolve, reject) => {
-                        const check = setInterval(() => {
-                            if (this.activeExecutions.get(executionId)?.status === 'stopping') {
-                                clearInterval(check);
-                                reject(new Error('USER_ABORTED'));
-                            }
-                        }, 500);
-                        setTimeout(() => { clearInterval(check); resolve(); }, delay);
-                    });
-                }
+
 
                 if (this.activeExecutions.get(executionId)?.status === 'stopping') {
                     throw new Error('USER_ABORTED');
@@ -260,20 +247,34 @@ class WorkflowEngine {
                 }
             };
 
-            // Chạy với giới hạn concurrency = threads
-            // Dùng sliding window: launch theo nhóm `threads`, chờ nhóm xong rồi tiếp
-            const chunks = [];
-            for (let i = 0; i < accounts.length; i += threads) {
-                chunks.push(accounts.slice(i, i + threads));
-            }
+            // Pool N slot co dinh, moi slot delay 1 lan khi khoi dong, sau do chay doc lap
+            let accountIndex = 0;
 
-            for (const chunk of chunks) {
-                if (aborted || this.activeExecutions.get(executionId)?.status === 'stopping') break;
-                const startIndex = accounts.indexOf(chunk[0]);
-                await Promise.allSettled(
-                    chunk.map((account, j) => processAccount(account, startIndex + j))
-                );
-            }
+            const runSlot = async (slotIndex) => {
+                // Delay slot: slot 0 = ngay, slot 1 = sau startup_delay, slot 2 = sau 2*startup_delay...
+                if (startup_delay > 0 && slotIndex > 0) {
+                    const delay = slotIndex * startup_delay * 1000;
+                    this._log(executionId, `[Slot ${slotIndex + 1}] Khoi dong sau ${slotIndex * startup_delay}s...`, 'default');
+                    await new Promise((resolve, reject) => {
+                        const check = setInterval(() => {
+                            if (this.activeExecutions.get(executionId)?.status === 'stopping') {
+                                clearInterval(check); reject(new Error('USER_ABORTED'));
+                            }
+                        }, 500);
+                        setTimeout(() => { clearInterval(check); resolve(); }, delay);
+                    }).catch(() => { aborted = true; });
+                }
+                // Sau delay, chay lien tuc cac account, khong phu thuoc slot khac
+                while (!aborted && this.activeExecutions.get(executionId)?.status !== 'stopping') {
+                    const i = accountIndex++;
+                    if (i >= accounts.length) break;
+                    await processAccount(accounts[i], i);
+                }
+            };
+
+            await Promise.allSettled(
+                Array.from({ length: Math.min(threads, accounts.length) }, (_, slotIndex) => runSlot(slotIndex))
+            );
 
             this._log(executionId, `✨ TẤT CẢ HOÀN TẤT ✨`, 'success');
             exec.status = 'completed';
