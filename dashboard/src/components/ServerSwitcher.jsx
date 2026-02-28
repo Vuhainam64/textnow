@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Server, Plus, Check, Pencil, Trash2, X, ChevronDown, Globe } from 'lucide-react'
+import { Server, Plus, Check, Pencil, Trash2, X, ChevronDown, Globe, Download, Upload } from 'lucide-react'
 import { getServers, saveServers, getActiveServerId, setActiveServerId } from '../lib/serverStore'
 import { showToast } from './Toast'
 
@@ -8,6 +8,7 @@ const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6'
 const DEFAULT_FORM = { id: '', name: '', url: '', color: '#6366f1', icon: '🖥️' }
 
 export default function ServerSwitcher({ onChange }) {
+    const fileRef = useRef(null)
     const [open, setOpen] = useState(false)
     const [servers, setServers] = useState(getServers)
     const [activeId, setActiveId] = useState(getActiveServerId)
@@ -29,6 +30,38 @@ export default function ServerSwitcher({ onChange }) {
         document.addEventListener('mousedown', handler)
         return () => document.removeEventListener('mousedown', handler)
     }, [])
+
+    const exportJson = () => {
+        const blob = new Blob([JSON.stringify(servers, null, 2)], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'vps-servers.json'
+        a.click()
+        URL.revokeObjectURL(url)
+        showToast('✅ Đã xuất danh sách server')
+    }
+
+    const importJson = (e) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        const reader = new FileReader()
+        reader.onload = (ev) => {
+            try {
+                const list = JSON.parse(ev.target.result)
+                if (!Array.isArray(list) || !list[0]?.url) return showToast('File JSON không hợp lệ', 'error')
+                saveServers(list)
+                setServers(list)
+                if (!list.find(s => s.id === activeId)) {
+                    setActiveServerId(list[0].id)
+                    setActiveId(list[0].id)
+                }
+                showToast(`✅ Đã nhập ${list.length} server`)
+            } catch { showToast('File JSON bị lỗi', 'error') }
+        }
+        reader.readAsText(file)
+        e.target.value = ''
+    }
 
     const select = (server) => {
         setActiveServerId(server.id)
@@ -98,10 +131,23 @@ export default function ServerSwitcher({ onChange }) {
                             <Server size={13} className="text-blue-400" />
                             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">VPS Servers</span>
                         </div>
-                        <button onClick={openAdd}
-                            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 text-[11px] font-bold transition-all">
-                            <Plus size={11} /> Thêm
-                        </button>
+                        <div className="flex items-center gap-1">
+                            <input ref={fileRef} type="file" accept=".json" className="hidden" onChange={importJson} />
+                            <button onClick={exportJson}
+                                title="Xuất JSON"
+                                className="w-6 h-6 rounded-lg hover:bg-white/10 text-slate-500 hover:text-slate-200 flex items-center justify-center transition-all">
+                                <Download size={12} />
+                            </button>
+                            <button onClick={() => fileRef.current?.click()}
+                                title="Nhập JSON"
+                                className="w-6 h-6 rounded-lg hover:bg-white/10 text-slate-500 hover:text-slate-200 flex items-center justify-center transition-all">
+                                <Upload size={12} />
+                            </button>
+                            <button onClick={openAdd}
+                                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 text-[11px] font-bold transition-all">
+                                <Plus size={11} /> Thêm
+                            </button>
+                        </div>
                     </div>
 
                     {/* Server list */}
