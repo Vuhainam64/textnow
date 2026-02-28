@@ -530,7 +530,7 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                         </div>
                     </div>
                     <div className="p-4 space-y-6 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-slate-800">
-                        {['Hệ thống', 'Profile', 'Thao tác', 'Email', 'Logic'].map(category => {
+                        {[...new Set(NODE_TEMPLATES.filter(t => t.type !== 'sourceNode').map(t => t.category))].map(category => {
                             const templates = NODE_TEMPLATES.filter(t => t.category === category);
                             if (templates.length === 0) return null;
 
