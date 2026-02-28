@@ -9,6 +9,7 @@ export const STATUS_MAP = {
     no_mail: { label: 'No Mail', color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20', dot: 'bg-orange-400' },
     "Captcha": { label: 'Lỗi Captcha', color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20', dot: 'bg-orange-400' },
     "Reset Error": { label: 'Lỗi Reset', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20', dot: 'bg-rose-400' },
+    "verified": { label: 'Đã xác thực', color: 'text-teal-400', bg: 'bg-teal-500/10 border-teal-500/20', dot: 'bg-teal-400' },
 }
 
 export const GROUP_COLORS = [

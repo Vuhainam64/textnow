@@ -36,7 +36,7 @@ export async function handleMoTrinhDuyet(executionId, config, context, engine) {
         const portMatch = wsEndpoint.match(/(\d{4,5})/);
         const port = portMatch ? portMatch[1] : '?';
         engine._log(executionId, `   + Trinh duyet da san sang.`);
-        engine._log(executionId, `   🔌 CDP Port: ${port}  |  ws: ${wsEndpoint.split('/')[2]}`, 'info');
+        engine._log(executionId, `   🔌 CDP Port: ${port}  |  Profile ID: ${context.profileId}  |  ws: ${wsEndpoint.split('/')[2]}`, 'info');
         return true;
     } catch (err) {
         if (err.message.includes('MLX Launcher')) throw err;
@@ -134,13 +134,19 @@ export async function handleDongTrinhDuyet(executionId, config, context, engine)
 }
 
 export async function handleXoaProfile(executionId, config, context, engine) {
-    if (!context.profileId) throw new Error('Can profileId de xoa profile');
+    if (!context.profileId) {
+        engine._log(executionId, `   ~ Khong co profileId, bo qua xoa profile.`, 'warning');
+        return true;
+    }
     await mlx.removeProfile(context.profileId);
     engine._log(executionId, `   + Da xoa profile vinh vien tren cloud.`);
 }
 
 export async function handleXoaProfileLocal(executionId, config, context, engine) {
-    if (!context.profileId) throw new Error('Can profileId de xoa folder local');
+    if (!context.profileId) {
+        engine._log(executionId, `   ~ Khong co profileId, bo qua xoa folder local.`, 'warning');
+        return true;
+    }
     await mlx.deleteLocalProfile(context.profileId);
     engine._log(executionId, `   + Da xoa folder profile tai duong dan local.`);
 }
@@ -151,6 +157,19 @@ export async function handleCapNhatTrangThai(executionId, config, context, engin
     await Account.findByIdAndUpdate(context.account._id, { status: newStatus });
     context.account.status = newStatus;
     engine._log(executionId, `   + Da cap nhat trang thai thanh cong.`);
+    return true;
+}
+
+export async function handleCapNhatMatKhau(executionId, config, context, engine) {
+    const newPass = engine._resolveValue(config.password || '', context);
+    if (!newPass) {
+        engine._log(executionId, `   - Chua nhap mat khau moi`, 'error');
+        return false;
+    }
+    engine._log(executionId, `   + Dang cap nhat mat khau tai khoan...`);
+    await Account.findByIdAndUpdate(context.account._id, { textnow_pass: newPass });
+    context.account.textnow_pass = newPass;
+    engine._log(executionId, `   + Da cap nhat mat khau thanh cong.`);
     return true;
 }
 
@@ -188,17 +207,17 @@ export async function handlePerimeterX(executionId, config, context, engine) {
     const timeoutMs = (parseInt(config.timeout) || 300) * 1000;
     const pollMs = parseInt(config.poll_ms) || 1000;
     const modalWaitS = parseInt(config.modal_wait) || 10;
+    const holdTimeoutMs = (parseInt(config.hold_timeout) || 60) * 1000;
 
     if (!apiUrl) {
         engine._log(executionId, `   - PerimeterX: api_url bi trong`, 'error');
         return false;
     }
 
-    // 1. Setup request listener TRUOC khi click
-    let auditorResolve;
-    const auditorPromise = new Promise(r => { auditorResolve = r; });
+    // 1. Setup request listener TRUOC khi click (dung flag thay vi Promise)
+    let _auditorFiredEarly = false;
     const onReq = req => {
-        if (req.url().includes('crcldu.com/bd/auditor.js')) auditorResolve();
+        if (req.url().includes('crcldu.com/bd/auditor.js')) _auditorFiredEarly = true;
     };
     page.on('request', onReq);
 
@@ -234,23 +253,47 @@ export async function handlePerimeterX(executionId, config, context, engine) {
     }
     engine._log(executionId, `   - PerimeterX (403). Cho captcha widget...`, 'warning');
 
-    // 4. Cho auditor.js load (captcha san sang)
-    try {
-        await Promise.race([
-            auditorPromise,
-            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 20000)),
-        ]);
-        engine._log(executionId, `   + Widget san sang (auditor.js detected)`);
-    } catch {
-        page.off('request', onReq);
-        engine._log(executionId, `   - Timeout cho captcha widget (20s)`, 'error');
+    // 4. Cho auditor.js load HOAC API tra 200 (moi 1s)
+    const widgetWaitMs = modalWaitS * 1000;
+    const waitStart = Date.now();
+    let apiPassedEarly = false;
+
+    while (Date.now() - waitStart < widgetWaitMs) {
+        // Check user abort
+        if (engine.activeExecutions.get(executionId)?.status === 'stopping') {
+            page.off('request', onReq);
+            return false;
+        }
+        await new Promise(r => setTimeout(r, 1000));
+
+        // Neu auditor.js da bat → captcha widget san sang
+        if (_auditorFiredEarly) {
+            engine._log(executionId, `   + Widget san sang (auditor.js detected)`);
+            break;
+        }
+
+        // Poll API: neu da tra 200 → khong can giai captcha
+        try {
+            const res = await page.request.get(apiUrl, { timeout: 5000 });
+            if (res.status() !== 403) {
+                engine._log(executionId, `   + API tra ${res.status()} trong luc cho → PASS (khong can giai)`, 'info');
+                apiPassedEarly = true;
+                break;
+            }
+        } catch { /* giu cho */ }
+    }
+
+    page.off('request', onReq);
+
+    if (apiPassedEarly) return true;
+
+    if (!_auditorFiredEarly) {
+        engine._log(executionId, `   - Timeout ${modalWaitS}s: captcha widget khong xuat hien`, 'error');
         return false;
-    } finally {
-        page.off('request', onReq);
     }
 
     // 5. Giai captcha
-    const solved = await _solvePerimeterX(page, engine, executionId, apiUrl, timeoutMs, pollMs, modalWaitS * 1000);
+    const solved = await _solvePerimeterX(page, engine, executionId, apiUrl, timeoutMs, pollMs, modalWaitS * 1000, holdTimeoutMs);
     if (!solved) {
         engine._log(executionId, `   - Khong giai duoc captcha → FALSE`, 'warning');
         return false;
@@ -268,10 +311,11 @@ export async function handlePerimeterX(executionId, config, context, engine) {
  *
  * Tranh false positive cua `offsetParent` (modal la position:fixed nen luon null).
  */
-async function _solvePerimeterX(page, engine, executionId, apiUrl, timeoutMs = 300000, pollMs = 1000, modalWaitMs = 10000) {
+async function _solvePerimeterX(page, engine, executionId, apiUrl, timeoutMs = 300000, pollMs = 1000, modalWaitMs = 10000, holdTimeoutMs = 60000) {
     const MAX_TOTAL_MS = timeoutMs;
     const MODAL_WAIT_MS = modalWaitMs;
     const API_POLL_MS = pollMs;
+    const MAX_HOLD_MS = holdTimeoutMs;  // Toi da moi lan giu
     const globalStart = Date.now();
 
 
@@ -369,7 +413,13 @@ async function _solvePerimeterX(page, engine, executionId, apiUrl, timeoutMs = 3
             while (Date.now() - globalStart < MAX_TOTAL_MS) {
                 await new Promise(r => setTimeout(r, API_POLL_MS));
 
-                // Signal 1: Trang navigation → PASS ngay lap tuc
+                // Signal 0: User dung → thoat ngay
+                if (engine.activeExecutions.get(executionId)?.status === 'stopping') {
+                    await page.mouse.up().catch(() => { });
+                    throw new Error('USER_ABORTED');
+                }
+
+                // Signal 1: Trang navigation → PASS
                 if (pageNavigated) {
                     engine._log(executionId, `   + Trang chuyen huong → PASS (${Date.now() - holdStart}ms)`);
                     solved = true;
@@ -393,8 +443,16 @@ async function _solvePerimeterX(page, engine, executionId, apiUrl, timeoutMs = 3
                     break;
                 }
 
-                engine._log(executionId, `   ~ Dang giu... (${Math.round((Date.now() - holdStart) / 1000)}s)`);
+                // Signal 4: Qua hold_timeout → tha tay va thu lai
+                const heldMs = Date.now() - holdStart;
+                if (heldMs >= MAX_HOLD_MS) {
+                    engine._log(executionId, `   ~ Hold timeout (${Math.round(heldMs / 1000)}s) — tha va thu lai...`, 'warning');
+                    break;
+                }
+
+                engine._log(executionId, `   ~ Dang giu... (${Math.round(heldMs / 1000)}s/${Math.round(MAX_HOLD_MS / 1000)}s)`);
             }
+
 
             // Release mouse
             await page.mouse.up().catch(() => { });

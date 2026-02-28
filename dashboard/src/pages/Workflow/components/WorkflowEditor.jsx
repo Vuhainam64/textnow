@@ -61,7 +61,7 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
 
     // Danh sách taskNode chỉ có 1 đầu ra (handle 'default') — phải khớp với TaskNode.jsx
     const SINGLE_OUTPUT_LABELS = [
-        'Chờ đợi', 'Khai báo biến', 'Cập nhật trạng thái',
+        'Chờ đợi', 'Khai báo biến', 'Cập nhật trạng thái', 'Cập nhật mật khẩu',
         'Xoá profile', 'Xoá profile local', 'Đóng trình duyệt', 'Xoá tất cả Mail',
     ];
 
@@ -112,15 +112,36 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
     const [selectedEdge, setSelectedEdge] = useState(null);
     const [selectionMode, setSelectionMode] = useState(false);
     const [selectedNodes, setSelectedNodes] = useState([]);
+    const [showHints, setShowHints] = useState(true);
+
+    // Chup toan bo flow thanh anh PNG
+    const handleCaptureFlow = useCallback(async () => {
+        try {
+            const { toPng } = await import('html-to-image');
+            const el = document.querySelector('.react-flow__renderer');
+            if (!el) return;
+            const dataUrl = await toPng(el, { backgroundColor: '#0f1117', quality: 1, pixelRatio: 2 });
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = `flow_${Date.now()}.png`;
+            a.click();
+        } catch (err) {
+            console.error('Capture flow error:', err);
+        }
+    }, []);
 
     // Execution States
     const [isExecuting, setIsExecuting] = useState(false);
     const [showLogs, setShowLogs] = useState(false);
     const [logs, setLogs] = useState([]);
+    const [logHeight, setLogHeight] = useState(256);              // px, default 256 = h-64
+    const logDragRef = useRef(null);                              // { startY, startH }
     const [currentExecutionId, setCurrentExecutionId] = useState(null);
     const [activeNodeId, setActiveNodeId] = useState(null);       // Node dang chay
     const [browserPort, setBrowserPort] = useState(null);         // Port CDP khi mo browser
-    const [editingPort, setEditingPort] = useState(false);        // Dang sua port
+    const [editingPort, setEditingPort] = useState(false);        // Đang sửa port
+    const [profileId, setProfileId] = useState(null);             // Profile ID đang chạy
+    const [editingProfileId, setEditingProfileId] = useState(false); // Đang sửa Profile ID
 
     // Run Modal State
     const [showRunModal, setShowRunModal] = useState(false);
@@ -138,6 +159,62 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
     const reactFlowWrapper = useRef(null);
     const logContainerRef = useRef(null);
     const importFileRef = useRef(null);
+    const clipboardRef = useRef(null);  // { nodes, edges } khi Ctrl+C
+
+    // Ctrl+C / Ctrl+V: copy-paste nhom node
+    useEffect(() => {
+        const onKeyDown = (e) => {
+            // Bo qua khi dang go vao input/textarea
+            const tag = document.activeElement?.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+
+            const isCtrl = e.ctrlKey || e.metaKey;
+            if (!isCtrl) return;
+
+            if (e.key === 'c' || e.key === 'C') {
+                const sel = selectedNodes.filter(n => n.type !== 'sourceNode');
+                if (sel.length === 0) return;
+                const selIds = new Set(sel.map(n => n.id));
+                // Giu lai edge noi 2 node trong phan copy
+                const selEdges = edges.filter(ed => selIds.has(ed.source) && selIds.has(ed.target));
+                clipboardRef.current = { nodes: sel, edges: selEdges };
+                e.preventDefault();
+            }
+
+            if (e.key === 'v' || e.key === 'V') {
+                if (!clipboardRef.current) return;
+                e.preventDefault();
+                const { nodes: copiedNodes, edges: copiedEdges } = clipboardRef.current;
+                const OFFSET = 40;
+                const idMap = {};  // old id → new id
+
+                const newNodes = copiedNodes.map(n => {
+                    const newId = `node_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+                    idMap[n.id] = newId;
+                    return {
+                        ...n,
+                        id: newId,
+                        selected: false,
+                        position: { x: n.position.x + OFFSET, y: n.position.y + OFFSET },
+                        data: { ...n.data, _active: false },
+                    };
+                });
+
+                const newEdges = copiedEdges.map(ed => ({
+                    ...ed,
+                    id: `e_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                    source: idMap[ed.source] || ed.source,
+                    target: idMap[ed.target] || ed.target,
+                }));
+
+                setNodes(prev => [...prev, ...newNodes]);
+                setEdges(prev => [...prev, ...newEdges]);
+            }
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedNodes, edges]);
 
     useEffect(() => {
         const load = async () => {
@@ -201,6 +278,7 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                 ...runConfig,
                 start_node_id: nodeId,
                 ws_endpoint: browserPort ? `ws://127.0.0.1:${browserPort}` : undefined,
+                profile_id: profileId || undefined,
             });
             const executionId = res.data?.executionId || res.executionId;
             if (!executionId) throw new Error('Khong nhan duoc ID thuc thi');
@@ -306,10 +384,12 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                 setActiveNodeId(nodeId);
             });
 
-            // Phat hien port tu log
+            // Phat hien port va profileId tu log
             socket.on('workflow-log', (newLog) => {
                 const portMatch = newLog?.message?.match(/CDP Port: (\d+)/);
                 if (portMatch) setBrowserPort(portMatch[1]);
+                const profileMatch = newLog?.message?.match(/Profile ID: ([a-f0-9\-]{30,})/);
+                if (profileMatch) setProfileId(profileMatch[1]);
             });
 
             socket.on('disconnect', () => {
@@ -533,82 +613,86 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                         <ArrowLeft size={20} />
                     </button>
                     <div className="h-7 w-px bg-white/5 mx-1" />
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <h2 className="text-sm font-bold text-slate-200 uppercase tracking-tight">{workflow.name}</h2>
-                            <button onClick={() => setShowEditModal(true)} className="text-slate-600 hover:text-blue-400 transition-colors">
-                                <Edit3 size={13} />
-                            </button>
+                    <div className="flex items-center gap-2">
+                        {/* Tên workflow + nút edit */}
+                        <h2 className="text-sm font-bold text-slate-200 uppercase tracking-tight">{workflow.name}</h2>
+                        <button onClick={() => setShowEditModal(true)} className="text-slate-600 hover:text-blue-400 transition-colors">
+                            <Edit3 size={13} />
+                        </button>
 
-                            {/* CDP Port Badge - ke ben title */}
+                        {/* Separator | */}
+                        {(browserPort || editingPort || profileId) && (
+                            <div className="w-px h-6 bg-white/10 mx-1" />
+                        )}
+
+                        {/* Cột bên phải: Port + ProfileId xếp dọc */}
+                        <div className="flex flex-col gap-0.5">
+                            {/* CDP Port Badge */}
                             {browserPort && !editingPort && (
-                                <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-white/10">
+                                <div className="flex items-center gap-1.5">
                                     <Icons.Plug size={11} className="text-cyan-400" />
-                                    <span className="text-[11px] font-mono font-bold text-cyan-400">
-                                        :{browserPort}
-                                    </span>
-                                    <button
-                                        onClick={() => navigator.clipboard.writeText(`ws://127.0.0.1:${browserPort}`)}
-                                        className="text-cyan-700 hover:text-cyan-300 transition-colors"
-                                        title="Copy ws endpoint"
-                                    >
-                                        <Icons.Copy size={10} />
-                                    </button>
-                                    <button
-                                        onClick={() => setEditingPort(true)}
-                                        className="text-slate-600 hover:text-amber-400 transition-colors"
-                                        title="Sua port"
-                                    >
-                                        <Icons.Pen size={10} />
-                                    </button>
-                                    <button
-                                        onClick={() => setBrowserPort(null)}
-                                        className="text-slate-600 hover:text-red-400 transition-colors"
-                                        title="Reset port"
-                                    >
-                                        <Icons.X size={10} />
-                                    </button>
+                                    <span className="text-[11px] font-mono font-bold text-cyan-400">:{browserPort}</span>
+                                    <button onClick={() => navigator.clipboard.writeText(`ws://127.0.0.1:${browserPort}`)} className="text-cyan-700 hover:text-cyan-300 transition-colors" title="Copy ws endpoint"><Icons.Copy size={10} /></button>
+                                    <button onClick={() => setEditingPort(true)} className="text-slate-600 hover:text-amber-400 transition-colors" title="Sua port"><Icons.Pen size={10} /></button>
+                                    <button onClick={() => setBrowserPort(null)} className="text-slate-600 hover:text-red-400 transition-colors" title="Reset port"><Icons.X size={10} /></button>
                                 </div>
                             )}
 
                             {/* Inline edit port */}
                             {editingPort && (
-                                <div className="flex items-center gap-1 ml-2 pl-2 border-l border-white/10">
+                                <div className="flex items-center gap-1">
                                     <Icons.Plug size={11} className="text-cyan-400" />
                                     <span className="text-[11px] text-slate-500 font-mono">127.0.0.1:</span>
-                                    <input
-                                        autoFocus
-                                        defaultValue={browserPort || ''}
-                                        className="w-14 bg-transparent border-b border-cyan-500/50 text-[11px] font-mono text-cyan-300 focus:outline-none px-0.5"
-                                        placeholder="PORT"
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                setBrowserPort(e.target.value || null);
-                                                setEditingPort(false);
-                                            }
-                                            if (e.key === 'Escape') setEditingPort(false);
-                                        }}
-                                        onBlur={(e) => {
-                                            setBrowserPort(e.target.value || null);
-                                            setEditingPort(false);
-                                        }}
+                                    <input autoFocus defaultValue={browserPort || ''} className="w-14 bg-transparent border-b border-cyan-500/50 text-[11px] font-mono text-cyan-300 focus:outline-none px-0.5" placeholder="PORT"
+                                        onKeyDown={(e) => { if (e.key === 'Enter') { setBrowserPort(e.target.value || null); setEditingPort(false); } if (e.key === 'Escape') setEditingPort(false); }}
+                                        onBlur={(e) => { setBrowserPort(e.target.value || null); setEditingPort(false); }}
                                     />
                                 </div>
                             )}
 
-                            {/* Hien thi nut them port khi chua co */}
+                            {/* Nut them port (khi chua co) */}
                             {!browserPort && !editingPort && (
-                                <button
-                                    onClick={() => setEditingPort(true)}
-                                    className="ml-2 pl-2 border-l border-white/5 flex items-center gap-1 text-slate-700 hover:text-cyan-400 transition-colors text-[10px]"
-                                    title="Them CDP port de resume"
-                                >
-                                    <Icons.Plug size={10} />
-                                    <span>Port</span>
+                                <button onClick={() => setEditingPort(true)} className="flex items-center gap-1 text-slate-600 hover:text-cyan-400 transition-colors text-[10px]" title="Them CDP port">
+                                    <Icons.Plug size={10} /><span>Port</span>
+                                </button>
+                            )}
+
+                            {/* Profile ID - hàng 2 trong cột */}
+                            {profileId && !editingProfileId && (
+                                <div className="flex items-center gap-1.5">
+                                    <Icons.Fingerprint size={10} className="text-violet-400" />
+                                    <span className="text-[10px] font-mono text-violet-400 cursor-default" title={profileId}>{profileId.substring(0, 8)}&hellip;</span>
+                                    <button onClick={() => navigator.clipboard.writeText(profileId)} className="text-violet-700 hover:text-violet-300 transition-colors" title={"Copy: " + profileId}><Icons.Copy size={9} /></button>
+                                    <button onClick={() => setEditingProfileId(true)} className="text-slate-600 hover:text-amber-400 transition-colors" title="Sua Profile ID"><Icons.Pen size={9} /></button>
+                                    <button onClick={() => setProfileId(null)} className="text-slate-600 hover:text-red-400 transition-colors" title="Reset"><Icons.X size={9} /></button>
+                                </div>
+                            )}
+
+                            {/* Inline edit Profile ID */}
+                            {editingProfileId && (
+                                <div className="flex items-center gap-1">
+                                    <Icons.Fingerprint size={10} className="text-violet-400" />
+                                    <input
+                                        autoFocus
+                                        defaultValue={profileId || ''}
+                                        className="w-32 bg-transparent border-b border-violet-500/50 text-[10px] font-mono text-violet-300 focus:outline-none px-0.5"
+                                        placeholder="Profile ID..."
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') { setProfileId(e.target.value || null); setEditingProfileId(false); }
+                                            if (e.key === 'Escape') setEditingProfileId(false);
+                                        }}
+                                        onBlur={(e) => { setProfileId(e.target.value || null); setEditingProfileId(false); }}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Nut them Profile ID khi chua co */}
+                            {!profileId && !editingProfileId && (
+                                <button onClick={() => setEditingProfileId(true)} className="flex items-center gap-1 text-slate-600 hover:text-violet-400 transition-colors text-[10px]" title="Them Profile ID">
+                                    <Icons.Fingerprint size={10} /><span>Profile ID</span>
                                 </button>
                             )}
                         </div>
-                        <p className="text-[10px] text-slate-500">Đang thiết kế quy trình tự động hoá</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -660,13 +744,27 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                         onChange={handleImport}
                     />
                     <button
+                        onClick={handleCaptureFlow}
+                        title="Chụp toàn bộ flow"
+                        className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/5 text-slate-400 hover:text-sky-400 hover:bg-sky-500/10 transition-all"
+                    >
+                        <Icons.Camera size={16} />
+                    </button>
+                    <button
+                        onClick={() => setShowHints(h => !h)}
+                        title={showHints ? 'An gợi ý' : 'Hiện gợi ý'}
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${showHints ? 'bg-purple-500/20 text-purple-400' : 'bg-white/5 text-slate-500 hover:text-white'}`}
+                    >
+                        <Icons.HelpCircle size={16} />
+                    </button>
+                    <button
                         onClick={() => setShowLogs(!showLogs)}
                         className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${showLogs ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 text-slate-400 hover:text-white'}`}
                     >
                         <Terminal size={18} />
                     </button>
                 </div>
-            </div>
+            </div >
 
             <div className="flex flex-1 overflow-hidden relative" ref={reactFlowWrapper}>
                 {/* Left Sidebar - Library */}
@@ -727,24 +825,33 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                         fitView className="bg-[#0f1117]"
                         defaultEdgeOptions={{ animated: true, style: { strokeWidth: 3 } }}
                     >
-                        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-                            <div className="bg-[#161b27]/80 backdrop-blur-md border border-white/5 px-4 py-2 rounded-full shadow-2xl flex items-center gap-3">
-                                <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium">
-                                    <kbd className="px-1.5 py-0.5 bg-white/5 border border-white/10 rounded text-slate-300">Ctrl</kbd>
-                                    <span>+ Kéo chuột để chọn nhiều | </span>
-                                    <kbd className="px-1.5 py-0.5 bg-white/5 border border-white/10 rounded text-slate-300">Del</kbd>
-                                    <span>để xoá</span>
+                        {showHints && (
+                            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+                                <div className="bg-[#161b27]/80 backdrop-blur-md border border-white/5 px-4 py-2 rounded-full shadow-2xl flex items-center gap-3">
+                                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium">
+                                        <kbd className="px-1.5 py-0.5 bg-white/5 border border-white/10 rounded text-slate-300">Ctrl</kbd>
+                                        <span>+ Kéo</span>
+                                        <span className="text-white/20">|</span>
+                                        <kbd className="px-1.5 py-0.5 bg-white/5 border border-white/10 rounded text-slate-300">Del</kbd>
+                                        <span>xoá</span>
+                                        <span className="text-white/20">|</span>
+                                        <kbd className="px-1.5 py-0.5 bg-white/5 border border-white/10 rounded text-slate-300">Ctrl+C</kbd>
+                                        <span>sao chép</span>
+                                        <span className="text-white/20">|</span>
+                                        <kbd className="px-1.5 py-0.5 bg-white/5 border border-white/10 rounded text-slate-300">Ctrl+V</kbd>
+                                        <span>dán</span>
+                                    </div>
+                                    {selectionMode && (
+                                        <>
+                                            <div className="w-px h-3 bg-white/10" />
+                                            <div className="text-[10px] text-purple-400 font-bold uppercase tracking-wider animate-pulse">
+                                                Selection Mode Active
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
-                                {selectionMode && (
-                                    <>
-                                        <div className="w-px h-3 bg-white/10" />
-                                        <div className="text-[10px] text-purple-400 font-bold uppercase tracking-wider animate-pulse">
-                                            Selection Mode Active
-                                        </div>
-                                    </>
-                                )}
                             </div>
-                        </div>
+                        )}
                         <Background color="#1e2535" gap={25} size={1} variant="dots" />
                         <Controls className="!bg-[#161b27] !border-white/5 !shadow-2xl fill-white" />
                         <MiniMap
@@ -755,7 +862,31 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                     </ReactFlow>
 
                     {/* Console Panel */}
-                    <aside className={`absolute bottom-0 left-0 right-0 z-20 glass border-t border-white/10 transition-all duration-500 ease-in-out ${showLogs ? 'h-64' : 'h-0 opacity-0 pointer-events-none'}`}>
+                    <aside
+                        className={`absolute bottom-0 left-0 right-0 z-20 glass border-t border-white/10 transition-[opacity] duration-300 ${showLogs ? '' : 'opacity-0 pointer-events-none'}`}
+                        style={{ height: showLogs ? `${logHeight}px` : 0 }}
+                    >
+                        {/* Drag handle — keo len/xuong de resize */}
+                        <div
+                            className="absolute top-0 left-0 right-0 h-1 cursor-row-resize hover:bg-blue-500/40 transition-colors z-10 group"
+                            onMouseDown={e => {
+                                e.preventDefault();
+                                logDragRef.current = { startY: e.clientY, startH: logHeight };
+                                const onMove = ev => {
+                                    const delta = logDragRef.current.startY - ev.clientY;
+                                    const newH = Math.min(Math.max(logDragRef.current.startH + delta, 120), window.innerHeight * 0.8);
+                                    setLogHeight(newH);
+                                };
+                                const onUp = () => {
+                                    window.removeEventListener('mousemove', onMove);
+                                    window.removeEventListener('mouseup', onUp);
+                                };
+                                window.addEventListener('mousemove', onMove);
+                                window.addEventListener('mouseup', onUp);
+                            }}
+                        >
+                            <div className="absolute left-1/2 -translate-x-1/2 top-0 w-10 h-1 rounded-full bg-white/20 group-hover:bg-blue-400/60 transition-colors" />
+                        </div>
                         <div className="flex items-center justify-between px-4 h-10 border-b border-white/5 bg-white/[0.02]">
                             <div className="flex items-center gap-2">
                                 <Terminal size={14} className="text-blue-400" />
@@ -870,6 +1001,7 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                                                             <Select
                                                                 options={[
                                                                     { value: 'active', label: 'Hoạt động' },
+                                                                    { value: 'verified', label: 'Đã xác thực' },
                                                                     { value: 'die_mail', label: 'Die Mail' },
                                                                     { value: 'no_mail', label: 'No Mail' },
                                                                     { value: 'Reset Error', label: 'Lỗi Reset' },
@@ -891,6 +1023,7 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                                                             <Select
                                                                 options={[
                                                                     { value: 'link', label: 'Link đầu tiên trong email' },
+                                                                    { value: 'link_pattern', label: 'Link theo pattern (extract_pattern)' },
                                                                     { value: 'otp_subject', label: 'OTP từ tiêu đề (Subject)' },
                                                                     { value: 'otp_body', label: 'OTP từ nội dung (Body)' },
                                                                     { value: 'regex', label: 'Regex tuỳ chỉnh' },
@@ -1020,106 +1153,110 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                 })()}
             </div>
 
-            {showEditModal && (
-                <Modal title="Chỉnh sửa thông tin kịch bản" onClose={() => setShowEditModal(false)}>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">Tên kịch bản</label>
-                            <input
-                                className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-blue-500/50"
-                                value={editData.name}
-                                onChange={e => setEditData({ ...editData, name: e.target.value })}
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">Mô tả</label>
-                            <textarea
-                                className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 resize-none"
-                                rows={3}
-                                value={editData.description}
-                                onChange={e => setEditData({ ...editData, description: e.target.value })}
-                            />
-                        </div>
-                        <div className="flex justify-end gap-3 pt-4">
-                            <button onClick={() => setShowEditModal(false)} className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:bg-white/5 transition-all">Huỷ</button>
-                            <button onClick={handleUpdateDetails} className="px-8 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-500 transition-all">Đầy lên</button>
-                        </div>
-                    </div>
-                </Modal>
-            )}
-
-            {showRunModal && (
-                <Modal title="Cấu hình chạy" onClose={() => setShowRunModal(false)}>
-                    <div className="space-y-5">
-                        <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">Nhóm tài khoản <span className="text-rose-500">*</span></label>
-                            <Select options={accountGroups.map(g => ({ value: g._id, label: g.name }))} value={runConfig.account_group_id} onChange={e => setRunConfig(c => ({ ...c, account_group_id: e.target.value }))} />
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">Nhóm proxy <span className="text-slate-600">(tuỳ chọn)</span></label>
-                            <Select
-                                options={[{ value: '', label: '— Không dùng proxy —' }, ...proxyGroups.map(g => ({ value: g._id, label: g.name }))]}
-                                value={runConfig.proxy_group_id}
-                                onChange={e => setRunConfig(c => ({ ...c, proxy_group_id: e.target.value }))}
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">
-                                Mật khẩu mới <span className="text-slate-600 font-normal normal-case">(nếu kịch bản cần)</span>
-                            </label>
-                            <input
-                                value={runConfig.new_password}
-                                onChange={e => setRunConfig(c => ({ ...c, new_password: e.target.value }))}
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 transition-all"
-                                placeholder="Để trống nếu kịch bản không cần..."
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">Trạng thái tài khoản cần xử lý</label>
-                            <div className="flex flex-wrap gap-2">
-                                {['active', 'inactive', 'pending', 'no_mail', 'die_mail', 'Reset Error'].map(s => {
-                                    const checked = runConfig.target_statuses.includes(s);
-                                    const statusInfo = STATUS_MAP[s];
-                                    return (
-                                        <button
-                                            key={s}
-                                            onClick={() => setRunConfig(c => ({
-                                                ...c,
-                                                target_statuses: checked ? c.target_statuses.filter(x => x !== s) : [...c.target_statuses, s]
-                                            }))}
-                                            className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${checked
-                                                ? `${statusInfo?.bg || 'bg-blue-500/20 border-blue-500/50'} ${statusInfo?.color || 'text-blue-400'}`
-                                                : 'bg-white/5 border-white/10 text-slate-500 hover:border-white/20'
-                                                }`}
-                                        >
-                                            {statusInfo?.label || s}
-                                        </button>
-                                    );
-                                })}
+            {
+                showEditModal && (
+                    <Modal title="Chỉnh sửa thông tin kịch bản" onClose={() => setShowEditModal(false)}>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">Tên kịch bản</label>
+                                <input
+                                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-blue-500/50"
+                                    value={editData.name}
+                                    onChange={e => setEditData({ ...editData, name: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">Mô tả</label>
+                                <textarea
+                                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 resize-none"
+                                    rows={3}
+                                    value={editData.description}
+                                    onChange={e => setEditData({ ...editData, description: e.target.value })}
+                                />
+                            </div>
+                            <div className="flex justify-end gap-3 pt-4">
+                                <button onClick={() => setShowEditModal(false)} className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:bg-white/5 transition-all">Huỷ</button>
+                                <button onClick={handleUpdateDetails} className="px-8 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-500 transition-all">Đầy lên</button>
                             </div>
                         </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">
-                                Số tài khoản muốn chạy
-                            </label>
-                            <input
-                                type="number" min="0"
-                                value={runConfig.limit}
-                                onChange={e => setRunConfig(c => ({ ...c, limit: e.target.value }))}
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 transition-all"
-                                placeholder="Để trống = chạy tất cả"
-                            />
-                            <p className="text-[10px] text-slate-600 mt-1.5 pl-1 italic">Nhập số để giới hạn, để trống = chạy hết</p>
+                    </Modal>
+                )
+            }
+
+            {
+                showRunModal && (
+                    <Modal title="Cấu hình chạy" onClose={() => setShowRunModal(false)}>
+                        <div className="space-y-5">
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">Nhóm tài khoản <span className="text-rose-500">*</span></label>
+                                <Select options={accountGroups.map(g => ({ value: g._id, label: g.name }))} value={runConfig.account_group_id} onChange={e => setRunConfig(c => ({ ...c, account_group_id: e.target.value }))} />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">Nhóm proxy <span className="text-slate-600">(tuỳ chọn)</span></label>
+                                <Select
+                                    options={[{ value: '', label: '— Không dùng proxy —' }, ...proxyGroups.map(g => ({ value: g._id, label: g.name }))]}
+                                    value={runConfig.proxy_group_id}
+                                    onChange={e => setRunConfig(c => ({ ...c, proxy_group_id: e.target.value }))}
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">
+                                    Mật khẩu mới <span className="text-slate-600 font-normal normal-case">(nếu kịch bản cần)</span>
+                                </label>
+                                <input
+                                    value={runConfig.new_password}
+                                    onChange={e => setRunConfig(c => ({ ...c, new_password: e.target.value }))}
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 transition-all"
+                                    placeholder="Để trống nếu kịch bản không cần..."
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">Trạng thái tài khoản cần xử lý</label>
+                                <div className="flex flex-wrap gap-2">
+                                    {['active', 'inactive', 'pending', 'no_mail', 'die_mail', 'Reset Error'].map(s => {
+                                        const checked = runConfig.target_statuses.includes(s);
+                                        const statusInfo = STATUS_MAP[s];
+                                        return (
+                                            <button
+                                                key={s}
+                                                onClick={() => setRunConfig(c => ({
+                                                    ...c,
+                                                    target_statuses: checked ? c.target_statuses.filter(x => x !== s) : [...c.target_statuses, s]
+                                                }))}
+                                                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${checked
+                                                    ? `${statusInfo?.bg || 'bg-blue-500/20 border-blue-500/50'} ${statusInfo?.color || 'text-blue-400'}`
+                                                    : 'bg-white/5 border-white/10 text-slate-500 hover:border-white/20'
+                                                    }`}
+                                            >
+                                                {statusInfo?.label || s}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">
+                                    Số tài khoản muốn chạy
+                                </label>
+                                <input
+                                    type="number" min="0"
+                                    value={runConfig.limit}
+                                    onChange={e => setRunConfig(c => ({ ...c, limit: e.target.value }))}
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 transition-all"
+                                    placeholder="Để trống = chạy tất cả"
+                                />
+                                <p className="text-[10px] text-slate-600 mt-1.5 pl-1 italic">Nhập số để giới hạn, để trống = chạy hết</p>
+                            </div>
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button onClick={() => setShowRunModal(false)} className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:bg-white/5 transition-all">Huỷ</button>
+                                <button onClick={handleConfirmRun} className="px-8 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-500 transition-all flex items-center gap-2">
+                                    <Icons.Play size={14} fill="white" /> Bắt đầu chạy
+                                </button>
+                            </div>
                         </div>
-                        <div className="flex justify-end gap-3 pt-2">
-                            <button onClick={() => setShowRunModal(false)} className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:bg-white/5 transition-all">Huỷ</button>
-                            <button onClick={handleConfirmRun} className="px-8 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-500 transition-all flex items-center gap-2">
-                                <Icons.Play size={14} fill="white" /> Bắt đầu chạy
-                            </button>
-                        </div>
-                    </div>
-                </Modal>
-            )}
-        </div>
+                    </Modal>
+                )
+            }
+        </div >
     );
 }

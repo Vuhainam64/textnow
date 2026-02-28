@@ -11,6 +11,7 @@ const SINGLE_OUTPUT_BLOCKS = [
     'Xo\u00e1 profile local',
     '\u0110\u00f3ng tr\u00ecnh duy\u1ec7t',
     'Xo\u00e1 t\u1ea5t c\u1ea3 Mail',
+    'C\u1eadp nh\u1eadt m\u1eadt kh\u1ea9u',
 ];
 
 const TaskNode = ({ id, data, selected }) => {

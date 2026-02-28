@@ -3,7 +3,7 @@ import Proxy from '../models/Proxy.js';
 import socketService from './socketService.js';
 // Node handlers — each file handles a category of workflow blocks
 import { handleKhaiBaoBien, handleLapLai, handleDieuKien, handleChoDoi } from './nodeHandlers/logicNodes.js';
-import { handleTaoProfile, handleMoTrinhDuyet, handleKetNoiBrowser, handleMoTrangWeb, handleClickChuot, handleNhapVanBan, handleDongTrinhDuyet, handleXoaProfile, handleXoaProfileLocal, handleCapNhatTrangThai, handlePerimeterX } from './nodeHandlers/browserNodes.js';
+import { handleTaoProfile, handleMoTrinhDuyet, handleKetNoiBrowser, handleMoTrangWeb, handleClickChuot, handleNhapVanBan, handleDongTrinhDuyet, handleXoaProfile, handleXoaProfileLocal, handleCapNhatTrangThai, handleCapNhatMatKhau, handlePerimeterX } from './nodeHandlers/browserNodes.js';
 import { handleKiemTraEmail, handleDocEmail, handleXoaMail } from './nodeHandlers/emailNodes.js';
 
 class WorkflowEngine {
@@ -67,7 +67,8 @@ class WorkflowEngine {
                 threads = 1,
                 startup_delay = 0,
                 start_node_id = null,   // Resume: bat dau tu node cu the
-                ws_endpoint = null,   // Resume: dung lai browser session
+                ws_endpoint = null,     // Resume: dung lai browser session
+                profile_id = null,      // Resume: profile MLX can xoa sau khi chay
             } = options;
 
             if (!account_group_id) throw new Error('Thiếu account_group_id — vui lòng chọn Nhóm tài khoản khi chạy');
@@ -147,10 +148,11 @@ class WorkflowEngine {
                     account,
                     threadId,
                     proxy: null,
-                    profileId: null,
+                    profileId: profile_id || null,  // Restore tu header UI khi resume
                     browser: null,
                     context: null,
-                    page: null
+                    page: null,
+                    new_password,
                 };
 
                 try {
@@ -357,6 +359,7 @@ class WorkflowEngine {
             case 'Xoá profile': return handleXoaProfile(executionId, config, context, this);
             case 'Xoá profile local': return handleXoaProfileLocal(executionId, config, context, this);
             case 'Cập nhật trạng thái': return handleCapNhatTrangThai(executionId, config, context, this);
+            case 'Cập nhật mật khẩu': return handleCapNhatMatKhau(executionId, config, context, this);
             case 'PerimeterX': return handlePerimeterX(executionId, config, context, this);
             // ── Email ─────────────────────────────────────────────────────────
             case 'Kiểm tra Email': return handleKiemTraEmail(executionId, config, context, this);
@@ -398,11 +401,16 @@ class WorkflowEngine {
 
     _resolveValue(value, context) {
         if (!value || typeof value !== 'string') return value;
+        const randomStr = len => Array.from({ length: len }, () =>
+            'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[Math.floor(Math.random() * 62)]
+        ).join('');
         return value.replace(/{{(\w+)}}/g, (_, key) => {
             if (key === 'email') return context.account?.textnow_user || '';
             if (key === 'pass') return context.account?.textnow_pass || '';
             if (key === 'hotmail') return context.account?.hotmail_user || '';
             if (key === 'hotmail_pass') return context.account?.hotmail_pass || '';
+            const m = key.match(/^random(\d+)$/);
+            if (m) return randomStr(parseInt(m[1]));
             return context[key] || '';
         });
     }

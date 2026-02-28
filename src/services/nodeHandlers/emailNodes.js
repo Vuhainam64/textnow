@@ -81,7 +81,13 @@ export async function handleKiemTraEmail(executionId, config, context, engine) {
 }
 
 // ── Đọc Email ───────────────────────────────────────────────────────────────
-function fetchEmailFromIMAP({ mail, authString, fromFilter, subjectFilter }) {
+async function fetchEmailFromIMAP({ mail, authString, fromFilter, subjectFilter }) {
+    // Tim trong ca INBOX va Junk
+    const FOLDERS = ['INBOX', 'Junk'];
+    const searchCriteria = [['SINCE', new Date(Date.now() - 30 * 60 * 1000)]];
+    if (fromFilter) searchCriteria.push(['FROM', fromFilter]);
+    if (subjectFilter) searchCriteria.push(['SUBJECT', subjectFilter]);
+
     return new Promise((resolve, reject) => {
         const imap = new Imap({
             user: mail,
@@ -94,29 +100,48 @@ function fetchEmailFromIMAP({ mail, authString, fromFilter, subjectFilter }) {
             authTimeout: 15000,
         });
 
-        imap.once('ready', () => {
-            imap.openBox('INBOX', true, (err) => {
-                if (err) { imap.end(); return reject(err); }
+        imap.once('ready', async () => {
+            let found = null;
 
-                const searchCriteria = [['SINCE', new Date(Date.now() - 15 * 60 * 1000)]];
-                if (fromFilter) searchCriteria.push(['FROM', fromFilter]);
-                if (subjectFilter) searchCriteria.push(['SUBJECT', subjectFilter]);
+            for (const folder of FOLDERS) {
+                if (found) break;
+                await new Promise(resFolder => {
+                    imap.openBox(folder, true, (err) => {
+                        if (err) return resFolder(); // bo qua folder loi
 
-                imap.search(searchCriteria, (err, results) => {
-                    if (err) { imap.end(); return reject(err); }
-                    if (!results || results.length === 0) { imap.end(); return resolve(null); }
+                        imap.search(searchCriteria, (err, results) => {
+                            if (err || !results || results.length === 0) return resFolder();
 
-                    const latest = [results[results.length - 1]];
-                    const fetch = imap.fetch(latest, { bodies: '' });
-                    let emailData = null;
+                            const latest = [results[results.length - 1]];
+                            const fetch = imap.fetch(latest, { bodies: '' });
+                            const parsePromises = [];
 
-                    fetch.on('message', (msg) => {
-                        msg.on('body', async (stream) => { emailData = await simpleParser(stream); });
+                            fetch.on('message', (msg) => {
+                                // Moi message tao 1 promise rieng de dam bao wait du
+                                const p = new Promise((resMsg) => {
+                                    msg.on('body', (stream) => {
+                                        simpleParser(stream)
+                                            .then(email => { found = email; resMsg(); })
+                                            .catch(() => resMsg());
+                                    });
+                                    msg.once('end', () => resMsg()); // fallback
+                                });
+                                parsePromises.push(p);
+                            });
+
+                            // Doi tat ca message parse xong ROI moi resolve
+                            fetch.once('end', async () => {
+                                await Promise.all(parsePromises);
+                                resFolder();
+                            });
+                            fetch.once('error', () => resFolder());
+                        });
                     });
-                    fetch.once('end', () => { imap.end(); resolve(emailData); });
-                    fetch.once('error', (err) => { imap.end(); reject(err); });
                 });
-            });
+            }
+
+            imap.end();
+            resolve(found);
         });
 
         imap.once('error', (err) => reject(err));
@@ -131,12 +156,15 @@ function extractFromEmail(email, extractType, extractPattern) {
 
     switch (extractType) {
         case 'link': {
-            if (extractPattern) {
-                const m = html.match(new RegExp(extractPattern, 'si'));
-                return m ? (m[1] || m[0]) : null;
-            }
+            // Lay link dau tien trong email
             const allLinks = [...html.matchAll(/href="(https?:\/\/[^"]+)"/gi)];
             return allLinks.length > 0 ? allLinks[0][1] : null;
+        }
+        case 'link_pattern': {
+            // Lay link theo regex pattern — extractPattern phai co capture group $1 la URL
+            if (!extractPattern) return null;
+            const m = html.match(new RegExp(extractPattern, 'si'));
+            return m ? (m[1] || m[0]) : null;
         }
         case 'otp_subject': {
             const pattern = extractPattern || '(\\d{4,8})';
@@ -162,17 +190,24 @@ export async function handleDocEmail(executionId, config, context, engine) {
     const { hotmail_user: mail, hotmail_client_id: clientId, hotmail_token: refreshToken } = context.account;
     const maxRetries = parseInt(config.retries) || 3;
     const waitSeconds = parseInt(config.wait_seconds) || 30;
+    const waitBefore = parseInt(config.wait_before_first) || 0;  // cho truoc lan thu dau tien
     const fromFilter = config.from || '';
     const subjectFilter = config.subject_contains || '';
     const extractType = config.extract_type || 'link';
     const extractPattern = config.extract_pattern || '';
     const outputVar = config.output_variable || 'result';
 
-    engine._log(executionId, `   + Tim email [from: ${fromFilter || 'bat ky'}] [tieu de chua: "${subjectFilter || 'bat ky'}"]...`);
+    engine._log(executionId, `   + Tim email [from: ${fromFilter || 'bat ky'}] [tieu de chua: "${subjectFilter || 'bat ky'}"] [INBOX + Junk]...`);
 
     if (!mail || !refreshToken || !clientId) {
         engine._log(executionId, `   - Thieu cau hinh Hotmail (Email/CID/Token)`, 'error');
         return false;
+    }
+
+    // Cho truoc lan thu dau tien neu can
+    if (waitBefore > 0) {
+        engine._log(executionId, `   + Cho ${waitBefore}s truoc khi kiem tra email...`);
+        await engine._wait(executionId, waitBefore * 1000);
     }
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -187,7 +222,7 @@ export async function handleDocEmail(executionId, config, context, engine) {
             const email = await fetchEmailFromIMAP({ mail, authString, fromFilter, subjectFilter });
 
             if (!email) {
-                engine._log(executionId, `   - Chua tim thay email phu hop. Thu lai...`);
+                engine._log(executionId, `   - Chua tim thay email phu hop trong INBOX va Junk. Thu lai...`);
                 continue;
             }
 

@@ -27,16 +27,17 @@ export const NODE_TEMPLATES = [
         config: {
             selector: 'button[type="submit"]',
             api_url: 'https://www.textnow.com/api/emails/auth/{{email}}',
-            wait_ms: 1500,   // ms cho sau khi click truoc khi check API
-            poll_ms: 1000,   // ms giua moi lan poll API trong khi giu
-            modal_wait: 10,     // giay cho captcha modal hien ra
-            timeout: 300,    // giay timeout tong the
+            wait_ms: 1500,  // ms cho sau khi click truoc khi check API
+            poll_ms: 1000,  // ms giua moi lan poll API trong khi giu
+            modal_wait: 10,    // giay cho captcha modal hien ra
+            hold_timeout: 60,    // giay giu toi da moi lan truoc khi thu lai
+            timeout: 300,   // giay timeout tong the
         }
     },
 
     // Category: Email
     { type: 'taskNode', label: 'Kiểm tra Email', category: 'Email', icon: 'Mail', color: 'bg-pink-500/20 text-pink-400', config: { folder: 'INBOX', timeout: 60, search_query: '', retries: 3 } },
-    { type: 'taskNode', label: 'Đọc Email', category: 'Email', icon: 'MailOpen', color: 'bg-violet-500/20 text-violet-400', config: { from: 'noreply@notifications.textnow.com', subject_contains: '', extract_type: 'link', extract_pattern: '', output_variable: 'result', retries: 3, wait_seconds: 30, timeout: 120 } },
+    { type: 'taskNode', label: 'Đọc Email', category: 'Email', icon: 'MailOpen', color: 'bg-violet-500/20 text-violet-400', config: { from: 'noreply@notifications.textnow.com', subject_contains: '', extract_type: 'otp_subject', extract_pattern: '', output_variable: 'otp', wait_before_first: 20, retries: 5, wait_seconds: 30, timeout: 120 } },
     { type: 'taskNode', label: 'Xoá tất cả Mail', category: 'Email', icon: 'MailX', color: 'bg-red-500/20 text-red-400', config: { folders: 'INBOX,Junk', timeout: 60 } },
 
     // Category: Logic
@@ -46,4 +47,5 @@ export const NODE_TEMPLATES = [
 
     // Category: Hệ thống (Advanced)
     { type: 'taskNode', label: 'Cập nhật trạng thái', category: 'Hệ thống', icon: 'UserCog', color: 'bg-orange-500/20 text-orange-400', config: { status: 'active', timeout: 10 } },
+    { type: 'taskNode', label: 'Cập nhật mật khẩu', category: 'Hệ thống', icon: 'KeyRound', color: 'bg-yellow-500/20 text-yellow-400', config: { password: '{{new_password}}', timeout: 10 } },
 ];
