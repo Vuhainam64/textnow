@@ -449,6 +449,55 @@ export default function History() {
                                             ))}
                                         </div>
 
+                                        {/* Thống kê theo trạng thái tài khoản */}
+                                        {(() => {
+                                            // Parse logs cua moi thread de lay trang thai cuoi cung
+                                            const statusMap = {};
+                                            threadList.forEach(t => {
+                                                if (t.status === 'running') return; // chi dem thread da xong
+                                                const logs = t.logs || [];
+                                                // Tim dong log "cap nhat trang thai tai khoan thanh: xxx"
+                                                let lastStatus = null;
+                                                for (let i = logs.length - 1; i >= 0; i--) {
+                                                    const m = logs[i].message?.match(/cap nhat trang thai tai khoan thanh:\s*(\S+)/i);
+                                                    if (m) { lastStatus = m[1]; break; }
+                                                }
+                                                if (lastStatus) {
+                                                    statusMap[lastStatus] = (statusMap[lastStatus] || 0) + 1;
+                                                }
+                                            });
+
+                                            const entries = Object.entries(statusMap);
+                                            if (entries.length === 0) return null;
+
+                                            const STATUS_COLORS = {
+                                                verified: { color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+                                                active: { color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
+                                                no_mail: { color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
+                                                die: { color: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20' },
+                                                die_mail: { color: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20' },
+                                                captcha: { color: 'text-violet-400', bg: 'bg-violet-500/10', border: 'border-violet-500/20' },
+                                            };
+                                            const defaultColor = { color: 'text-slate-400', bg: 'bg-white/5', border: 'border-white/10' };
+
+                                            return (
+                                                <div className="mb-4 p-4 rounded-2xl bg-white/[0.02] border border-white/5">
+                                                    <p className="text-[10px] text-slate-600 uppercase tracking-widest font-bold mb-3">Thống kê trạng thái tài khoản</p>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {entries.sort((a, b) => b[1] - a[1]).map(([st, cnt]) => {
+                                                            const c = STATUS_COLORS[st] || defaultColor;
+                                                            return (
+                                                                <div key={st} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${c.bg} ${c.border}`}>
+                                                                    <span className={`text-lg font-bold ${c.color}`}>{cnt}</span>
+                                                                    <span className={`text-[10px] font-bold ${c.color} uppercase`}>{st}</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+
                                         {/* Thread cards */}
                                         {threadList
                                             .sort((a, b) => a.index - b.index)
