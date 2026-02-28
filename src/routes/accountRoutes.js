@@ -169,4 +169,42 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
+// ─── POST /api/accounts/export ──────────────────────────────────────────────
+// Body: { status?, group_id?, deleteAfter?, format? }
+// format: 'pipe6' (default) = tn_user|tn_pass|hm_user|hm_pass|hm_token|client_id
+router.post('/export', async (req, res) => {
+    try {
+        const { status, group_id, deleteAfter = false } = req.body;
+        const query = {};
+
+        if (status) query.status = Array.isArray(status) ? { $in: status } : status;
+        if (group_id === 'null') query.group_id = null;
+        else if (group_id) query.group_id = group_id;
+
+        const accounts = await Account.find(query).lean();
+
+        // Format: tn_user|tn_pass|hm_user|hm_pass|hm_token|client_id
+        const lines = accounts.map(a =>
+            [
+                a.textnow_user || '',
+                a.textnow_pass || '',
+                a.hotmail_user || '',
+                a.hotmail_pass || '',
+                a.hotmail_token || '',
+                a.hotmail_client_id || '',
+            ].join('|')
+        ).join('\n');
+
+        if (deleteAfter) {
+            await Account.deleteMany(query);
+        }
+
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="accounts_${status || 'all'}_${Date.now()}.txt"`);
+        res.send(lines);
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 export default router;

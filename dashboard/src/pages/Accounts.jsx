@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState, useCallback, useRef } from 'react'
 import {
     Plus, Search, Trash2, Edit3, ChevronLeft, ChevronRight,
-    Upload, X, AlertCircle, Users, FolderOpen, Pencil, Check, FileText
+    Upload, X, AlertCircle, Users, FolderOpen, Pencil, Check, FileText, Download
 } from 'lucide-react'
 import { AccountsService } from '../services/apiService'
 import Select from '../components/Select'
@@ -127,6 +127,10 @@ export default function Accounts() {
     const [deleteAccountTarget, setDeleteAccountTarget] = useState(null)
     const [stats, setStats] = useState([])
     const [showDeleteAll, setShowDeleteAll] = useState(false)
+    const [showExport, setShowExport] = useState(false)
+    const [exportStatus, setExportStatus] = useState([])
+    const [exportDeleteAfter, setExportDeleteAfter] = useState(false)
+    const [exportLoading, setExportLoading] = useState(false)
 
     // Load groups
     const loadGroups = useCallback(async () => {
@@ -302,7 +306,41 @@ export default function Accounts() {
         e.target.value = '';
     }
 
-    // Current group info
+    const handleExport = async () => {
+        setExportLoading(true)
+        try {
+            const gid = selectedGroup !== '__all__' && selectedGroup !== '__ungrouped__' ? selectedGroup
+                : selectedGroup === '__ungrouped__' ? 'null' : undefined
+
+            const res = await fetch('/api/accounts/export', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    status: exportStatus.length > 0 ? exportStatus : undefined,
+                    group_id: gid,
+                    deleteAfter: exportDeleteAfter,
+                }),
+            })
+            if (!res.ok) { const e = await res.json(); throw new Error(e.message); }
+
+            const text = await res.text()
+            const statusLabel = exportStatus.length > 0 ? exportStatus.join('-') : 'all'
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `accounts_${statusLabel}_${Date.now()}.txt`
+            a.click()
+            URL.revokeObjectURL(url)
+
+            const lineCount = text.trim().split('\n').filter(Boolean).length
+            showToast(`✅ Đã xuất ${lineCount} tài khoản${exportDeleteAfter ? ' và đã xóa' : ''}`)
+            setShowExport(false)
+            if (exportDeleteAfter) { loadAccounts(1); loadGroups(); loadStats() }
+        } catch (e) { showToast(e.message, 'error') }
+        finally { setExportLoading(false) }
+    }
+
     const currentGroup = groups.find(g => g._id === selectedGroup)
     const groupColor = currentGroup?.color || '#3b82f6'
 
@@ -328,6 +366,67 @@ export default function Accounts() {
                     onClose={() => setShowDeleteAll(false)}
                 />
             )}
+
+            {/* ── Export Modal ─── */}
+            {showExport && (
+                <Modal title="Xuất tài khoản" onClose={() => setShowExport(false)}>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="text-xs text-slate-500 mb-2 block font-medium">Lọc theo trạng thái <span className="text-slate-600">(bỏ trống = tất cả)</span></label>
+                            <div className="flex flex-wrap gap-2">
+                                {['pending', 'active', 'inactive', 'banned', 'die_mail', 'no_mail', 'verified', 'Reset Error'].map(s => {
+                                    const cfg = STATUS_MAP[s] || { label: s }
+                                    const active = exportStatus.includes(s)
+                                    return (
+                                        <button key={s} onClick={() => setExportStatus(prev =>
+                                            active ? prev.filter(x => x !== s) : [...prev, s]
+                                        )}
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${active ? 'bg-blue-600/20 border-blue-500/40 text-blue-300' : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/20'
+                                                }`}>
+                                            {cfg.label || s}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+
+                        {currentGroup && (
+                            <p className="text-[11px] text-emerald-400">→ Chỉ xuất trong nhóm: <span className="font-semibold">{currentGroup.name}</span></p>
+                        )}
+
+                        {/* Export & delete toggle */}
+                        <label className="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all
+                            hover:border-white/20 border-white/10">
+                            <div className={`w-9 h-5 rounded-full transition-colors relative ${exportDeleteAfter ? 'bg-red-500' : 'bg-white/10'
+                                }`}
+                                onClick={() => setExportDeleteAfter(v => !v)}>
+                                <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${exportDeleteAfter ? 'translate-x-4' : ''
+                                    }`} />
+                            </div>
+                            <div>
+                                <p className="text-sm font-medium text-slate-200">Xuất xong rồi xóa</p>
+                                <p className="text-[11px] text-slate-500">Tự động xóa các tài khoản đã xuất khỏi database</p>
+                            </div>
+                        </label>
+
+                        {exportDeleteAfter && (
+                            <div className="p-2.5 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-400">
+                                ⚠️ Cảnh báo: Sau khi xuất, các tài khoản sẽ bị xóa vĩnh viễn!
+                            </div>
+                        )}
+
+                        <div className="flex justify-end gap-2 pt-1">
+                            <button onClick={() => setShowExport(false)} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Huỷ</button>
+                            <button onClick={handleExport} disabled={exportLoading}
+                                className={`px-5 py-2 rounded-xl text-sm font-medium text-white disabled:opacity-60 transition-all flex items-center gap-2 ${exportDeleteAfter ? 'bg-red-600 hover:bg-red-500' : 'bg-emerald-600 hover:bg-emerald-500'
+                                    }`}>
+                                {exportLoading ? 'Đang xuất...' : <><Download size={14} /> Xuất{exportDeleteAfter ? ' & Xóa' : ''}</>}
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+
             {(showGroupForm || editingGroup) && (
                 <Modal title={editingGroup ? 'Sửa nhóm' : 'Tạo nhóm mới'} onClose={() => { setShowGroupForm(false); setEditingGroup(null) }}>
                     <GroupForm initial={editingGroup} onSave={editingGroup ? handleUpdateGroup : handleCreateGroup}
@@ -594,6 +693,10 @@ export default function Accounts() {
                                 <Trash2 size={14} /> Xoá tất cả
                             </button>
                         )}
+                        <button onClick={() => { setShowExport(true); setExportStatus([]); setExportDeleteAfter(false); }}
+                            className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/10 transition-all">
+                            <Download size={14} /> Xuất
+                        </button>
                         <button onClick={() => setShowImport(true)}
                             className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-slate-300 bg-white/5 hover:bg-white/10 border border-white/10 transition-all">
                             <Upload size={14} /> Nhập file
