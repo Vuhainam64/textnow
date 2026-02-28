@@ -4,7 +4,7 @@ import {
     History as HistoryIcon, RefreshCcw, Clock, CheckCircle2,
     XCircle, Loader2, Calendar, ChevronRight, Square,
     Zap, Layers, Settings2, Terminal, List, LayoutGrid,
-    AlertCircle, User, ChevronDown
+    AlertCircle, AlertTriangle, User, ChevronDown
 } from 'lucide-react';
 import { WorkflowsService } from '../services/apiService';
 import { showToast } from '../components/Toast';
@@ -373,6 +373,24 @@ export default function History() {
                                     >
                                         <LayoutGrid size={12} /> Luồng
                                     </button>
+                                    {/* Tab loi */}
+                                    {(() => {
+                                        const errCount = logs.filter(l => l.type === 'error' || l.type === 'warning').length;
+                                        return (
+                                            <button
+                                                onClick={() => setViewMode('error')}
+                                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'error' ? 'bg-rose-600 text-white' : 'text-slate-500 hover:text-rose-400'
+                                                    }`}
+                                            >
+                                                <AlertTriangle size={12} /> Lỗi
+                                                {errCount > 0 && (
+                                                    <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${viewMode === 'error' ? 'bg-white/20 text-white' : 'bg-rose-500/20 text-rose-400'}`}>
+                                                        {errCount}
+                                                    </span>
+                                                )}
+                                            </button>
+                                        );
+                                    })()}
                                 </div>
 
                                 {/* Status */}
@@ -437,6 +455,41 @@ export default function History() {
                                 )}
                                 <div ref={logEndRef} />
                             </div>
+                        ) : viewMode === 'error' ? (
+                            /* ─ ERROR VIEW ─ */
+                            (() => {
+                                const errLogs = logs.filter(l => l.type === 'error' || l.type === 'warning');
+                                return (
+                                    <div className="flex-1 overflow-y-auto px-4 py-4 font-mono text-[12px] leading-relaxed bg-[#090c12] scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+                                        {errLogs.length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center h-40 text-slate-600 gap-3">
+                                                <CheckCircle2 size={24} className="text-emerald-700" />
+                                                <p className="text-sm">Không có lỗi nào 🎉</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-1">
+                                                {errLogs.map((log, i) => (
+                                                    <div key={log.id || i} className={`flex gap-3 rounded-lg px-3 py-1.5 -mx-1 border-l-2 ${log.type === 'error'
+                                                        ? 'bg-rose-500/5 border-rose-500/40'
+                                                        : 'bg-amber-500/5 border-amber-500/40'
+                                                        }`}>
+                                                        <span className="text-slate-700 shrink-0 text-[10px] mt-0.5 w-16">
+                                                            {log.timestamp ? new Date(log.timestamp).toLocaleTimeString('vi-VN') : ''}
+                                                        </span>
+                                                        {log.threadId && (
+                                                            <span className="text-[10px] text-slate-500 shrink-0 font-mono truncate max-w-[110px]" title={log.threadId}>
+                                                                [{log.threadId.split('@')[0]}]
+                                                            </span>
+                                                        )}
+                                                        <span className={`flex-1 break-all ${log.type === 'error' ? 'text-rose-400' : 'text-amber-400'
+                                                            }`}>{log.message}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })()
                         ) : (
                             /* ─ THREAD VIEW ─ */
                             <div className="flex-1 overflow-y-auto p-5 space-y-3">
@@ -449,43 +502,21 @@ export default function History() {
                                     </div>
                                 ) : (
                                     <>
-                                        {/* Summary row */}
-                                        <div className="grid grid-cols-3 gap-3 mb-4">
-                                            {[
-                                                { label: 'Đang chạy', value: runningCount, color: 'text-blue-400', bg: 'bg-blue-500/10', Icon: Loader2, spin: true },
-                                                { label: 'Thành công', value: successCount, color: 'text-emerald-400', bg: 'bg-emerald-500/10', Icon: CheckCircle2, spin: false },
-                                                { label: 'Lỗi', value: errorCount, color: 'text-rose-400', bg: 'bg-rose-500/10', Icon: XCircle, spin: false },
-                                            ].map(({ label, value, color, bg, Icon, spin }) => (
-                                                <div key={label} className={`${bg} rounded-2xl p-4 border border-white/5 flex items-center gap-3`}>
-                                                    <Icon size={18} className={`${color} ${spin && value > 0 ? 'animate-spin' : ''}`} />
-                                                    <div>
-                                                        <p className={`text-xl font-bold ${color}`}>{value}</p>
-                                                        <p className="text-[10px] text-slate-500">{label}</p>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        {/* Thống kê theo trạng thái tài khoản */}
+                                        {/* Stats merged */}
                                         {(() => {
-                                            // Parse logs cua moi thread de lay trang thai cuoi cung
+                                            // Parse account status tu logs cua moi thread da xong
                                             const statusMap = {};
                                             threadList.forEach(t => {
-                                                if (t.status === 'running') return; // chi dem thread da xong
+                                                if (t.status === 'running') return;
                                                 const logs = t.logs || [];
-                                                // Tim dong log "cap nhat trang thai tai khoan thanh: xxx"
                                                 let lastStatus = null;
                                                 for (let i = logs.length - 1; i >= 0; i--) {
                                                     const m = logs[i].message?.match(/cap nhat trang thai tai khoan thanh:\s*(\S+)/i);
                                                     if (m) { lastStatus = m[1]; break; }
                                                 }
-                                                if (lastStatus) {
-                                                    statusMap[lastStatus] = (statusMap[lastStatus] || 0) + 1;
-                                                }
+                                                if (lastStatus) statusMap[lastStatus] = (statusMap[lastStatus] || 0) + 1;
                                             });
-
-                                            const entries = Object.entries(statusMap);
-                                            if (entries.length === 0) return null;
+                                            const statusEntries = Object.entries(statusMap).sort((a, b) => b[1] - a[1]);
 
                                             const STATUS_COLORS = {
                                                 verified: { color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
@@ -495,32 +526,64 @@ export default function History() {
                                                 die_mail: { color: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20' },
                                                 captcha: { color: 'text-violet-400', bg: 'bg-violet-500/10', border: 'border-violet-500/20' },
                                             };
-                                            const defaultColor = { color: 'text-slate-400', bg: 'bg-white/5', border: 'border-white/10' };
+                                            const defClr = { color: 'text-slate-400', bg: 'bg-white/5', border: 'border-white/10' };
 
                                             return (
-                                                <div className="mb-4 p-4 rounded-2xl bg-white/[0.02] border border-white/5">
-                                                    <p className="text-[10px] text-slate-600 uppercase tracking-widest font-bold mb-3">Thống kê trạng thái tài khoản</p>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {entries.sort((a, b) => b[1] - a[1]).map(([st, cnt]) => {
-                                                            const c = STATUS_COLORS[st] || defaultColor;
-                                                            return (
-                                                                <div key={st} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${c.bg} ${c.border}`}>
-                                                                    <span className={`text-lg font-bold ${c.color}`}>{cnt}</span>
-                                                                    <span className={`text-[10px] font-bold ${c.color} uppercase`}>{st}</span>
-                                                                </div>
-                                                            );
-                                                        })}
+                                                <div className="mb-4 space-y-3">
+                                                    {/* Thread status row - compact pills */}
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        {runningCount > 0 && (
+                                                            <span className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold">
+                                                                <Loader2 size={11} className="animate-spin" /> {runningCount} đang chạy
+                                                            </span>
+                                                        )}
+                                                        {successCount > 0 && (
+                                                            <span className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold">
+                                                                <CheckCircle2 size={11} /> {successCount} thành công
+                                                            </span>
+                                                        )}
+                                                        {errorCount > 0 && (
+                                                            <span className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-bold">
+                                                                <XCircle size={11} /> {errorCount} lỗi
+                                                            </span>
+                                                        )}
                                                     </div>
+
+                                                    {/* Account status results - grid cards */}
+                                                    {statusEntries.length > 0 && (
+                                                        <div className={`grid gap-3 ${statusEntries.length <= 2 ? 'grid-cols-2' : statusEntries.length <= 3 ? 'grid-cols-3' : 'grid-cols-4'}`}>
+                                                            {statusEntries.map(([st, cnt]) => {
+                                                                const c = STATUS_COLORS[st] || defClr;
+                                                                return (
+                                                                    <div key={st} className={`${c.bg} rounded-2xl p-4 border ${c.border} flex items-center gap-3`}>
+                                                                        <div>
+                                                                            <p className={`text-2xl font-bold ${c.color}`}>{cnt}</p>
+                                                                            <p className={`text-[10px] font-bold ${c.color} uppercase tracking-wide`}>{st}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })()}
 
-                                        {/* Thread cards */}
+                                        {/* Thread cards - chi hien thi luong dang chay */}
                                         {threadList
+                                            .filter(t => t.status === 'running')
                                             .sort((a, b) => a.index - b.index)
                                             .map(thread => (
                                                 <ThreadCard key={thread.user} thread={thread} />
                                             ))}
+
+                                        {/* Khi khong co luong nao dang chay */}
+                                        {threadList.length > 0 && threadList.filter(t => t.status === 'running').length === 0 && (
+                                            <div className="flex flex-col items-center justify-center h-20 text-slate-600 gap-2">
+                                                <CheckCircle2 size={20} className="text-emerald-700" />
+                                                <p className="text-xs">Tất cả luồng đã hoàn thành</p>
+                                            </div>
+                                        )}
                                     </>
                                 )}
                             </div>

@@ -106,8 +106,8 @@ router.get('/executions/all', (req, res) => {
     for (const [id, exec] of WorkflowEngine.activeExecutions.entries()) {
         list.push({
             executionId: id,
-            workflowName: exec.workflow?.name || '—',
-            workflowId: exec.workflow?._id,
+            workflowName: exec.workflowName || exec.workflow?.name || '—',
+            workflowId: exec.workflowId || exec.workflow?._id,
             status: exec.status,
             started_at: exec.started_at,
             ended_at: exec.ended_at,

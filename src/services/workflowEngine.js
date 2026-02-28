@@ -32,11 +32,12 @@ class WorkflowEngine {
         console.log(`[Engine] 🚀 Bắt đầu thực thi quy trình: ${workflow.name} (${executionId})`);
 
         this.activeExecutions.set(executionId, {
-            workflow,
+            workflowName: workflow.name,   // Chi luu ten, khong luu toan bo workflow vao RAM
+            workflowId: workflow._id,
             status: 'running',
             started_at: new Date(),
             logs: [],
-            threads: {},   // accountUser → { status, logs, started_at, ended_at }
+            threads: {},
             options
         });
 
@@ -294,6 +295,36 @@ class WorkflowEngine {
                 socketService.to(executionId).emit('workflow-status', { status: 'failed' });
             }
         }
+
+        // Tu dong xoa execution cu: giu toi da 30, qua 30 phut thi xoa
+        this._cleanupOldExecutions(executionId);
+    }
+
+    _cleanupOldExecutions(currentId) {
+        const MAX_KEEP = 30;
+        const MAX_AGE_MS = 30 * 60 * 1000;  // 30 phut
+        const now = Date.now();
+
+        // Xoa cac execution qua cu (> 30 phut) va da xong
+        for (const [id, ex] of this.activeExecutions.entries()) {
+            if (id === currentId || ex.status === 'running' || ex.status === 'stopping') continue;
+            const age = now - new Date(ex.ended_at || ex.started_at).getTime();
+            if (age > MAX_AGE_MS) {
+                this.activeExecutions.delete(id);
+                console.log(`[Engine] ♻️  Xoa execution cu (${Math.round(age / 60000)}m): ${id}`);
+            }
+        }
+
+        // Neu van con qua nhieu, xoa cai cu nhat
+        const done = [...this.activeExecutions.entries()]
+            .filter(([id, ex]) => id !== currentId && ex.status !== 'running' && ex.status !== 'stopping')
+            .sort((a, b) => new Date(a[1].ended_at || 0) - new Date(b[1].ended_at || 0));
+
+        while (this.activeExecutions.size > MAX_KEEP && done.length > 0) {
+            const [oldId] = done.shift();
+            this.activeExecutions.delete(oldId);
+            console.log(`[Engine] ♻️  Xoa execution vuot gioi han: ${oldId}`);
+        }
     }
 
     /**
@@ -375,6 +406,10 @@ class WorkflowEngine {
         }
     }
 
+    // Gioi han log de tranh OOM
+    static MAX_GLOBAL_LOGS = 5000;   // Toi da log trong 1 execution
+    static MAX_THREAD_LOGS = 200;    // Toi da log moi thread
+
     _log(executionId, message, type = 'default', threadId = null) {
         const exec = this.activeExecutions.get(executionId);
         if (!exec) return;
@@ -389,10 +424,19 @@ class WorkflowEngine {
             threadId: effectiveThreadId,
         };
 
+        // Cap global logs
         exec.logs.push(logEntry);
+        if (exec.logs.length > WorkflowEngine.MAX_GLOBAL_LOGS) {
+            exec.logs.splice(0, exec.logs.length - WorkflowEngine.MAX_GLOBAL_LOGS);
+        }
 
         if (effectiveThreadId && exec.threads[effectiveThreadId]) {
-            exec.threads[effectiveThreadId].logs.push(logEntry);
+            const thr = exec.threads[effectiveThreadId];
+            thr.logs.push(logEntry);
+            // Cap thread logs
+            if (thr.logs.length > WorkflowEngine.MAX_THREAD_LOGS) {
+                thr.logs.splice(0, thr.logs.length - WorkflowEngine.MAX_THREAD_LOGS);
+            }
             socketService.to(executionId).emit('workflow-thread-update', {
                 threadId: effectiveThreadId,
                 thread: exec.threads[effectiveThreadId]
