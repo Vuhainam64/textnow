@@ -7,6 +7,7 @@
 import Account from '../../models/Account.js';
 import mlx from '../mlxService.js';
 import { connectBrowser, getPage } from '../browserService.js';
+import axios from 'axios';
 
 export async function handleTaoProfile(executionId, config, context, engine) {
     const profileName = `${context.account.textnow_user}_${Date.now()}`;
@@ -128,4 +129,51 @@ export async function handleCapNhatTrangThai(executionId, config, context, engin
     context.account.status = newStatus;
     engine._log(executionId, `   + Da cap nhat trang thai thanh cong.`);
     return true;
+}
+
+/**
+ * Kiểm tra Captcha: gọi API TextNow
+ * → 403 = có captcha (return false)
+ * → 200/other = không có captcha (return true)
+ */
+export async function handleKiemTraCaptcha(executionId, config, context, engine) {
+    const apiUrl = engine._resolveValue(
+        config.api_url || 'https://www.textnow.com/api/emails/auth/{{email}}',
+        context
+    );
+    engine._log(executionId, `   + Kiem tra captcha qua API: ${apiUrl}`);
+    try {
+        const res = await axios.get(apiUrl, {
+            timeout: (parseInt(config.timeout) || 15) * 1000,
+            validateStatus: () => true,   // không throw khi 4xx/5xx
+        });
+        if (res.status === 403) {
+            engine._log(executionId, `   - Phat hien Captcha (403). Can giai captcha.`, 'warning');
+            return false;   // → nhánh FALSE: có captcha
+        }
+        engine._log(executionId, `   + Khong co captcha (${res.status}). Tiep tuc.`);
+        return true;        // → nhánh TRUE: không có captcha
+    } catch (err) {
+        engine._log(executionId, `   - Loi goi API kiem tra captcha: ${err.message}`, 'error');
+        return false;
+    }
+}
+
+/**
+ * Giai Captcha: dùng code captcha có sẵn của user
+ * Thành công → true, thất bại → false
+ */
+export async function handleGiaiCaptcha(executionId, config, context, engine) {
+    if (!context.page) {
+        engine._log(executionId, `   Trinh duyet chua duoc mo`, 'error');
+        return false;
+    }
+    engine._log(executionId, `   + Dang giai captcha (type: ${config.type || 'hCaptcha'})...`);
+    // TODO: gọn code giải captcha của bạn vào đây
+    // context.page sẵn sàng để interact
+    // Ví dụ vờii 2captcha:
+    //   const token = await solve2Captcha(config.site_key, context.page.url())
+    //   await context.page.evaluate((t) => { window.captchaToken = t }, token)
+    engine._log(executionId, `   + Chua implement giai captcha. Cho ban them code vao.`, 'warning');
+    return false;
 }
