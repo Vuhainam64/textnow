@@ -185,7 +185,9 @@ export async function handlePerimeterX(executionId, config, context, engine) {
     const selector = engine._resolveValue(config.selector || 'button[type="submit"]', context);
     const apiUrl = engine._resolveValue(config.api_url || '', context);
     const waitMs = parseInt(config.wait_ms) || 1500;
-    const timeoutMs = (parseInt(config.timeout) || 20) * 1000;
+    const timeoutMs = (parseInt(config.timeout) || 300) * 1000;
+    const pollMs = parseInt(config.poll_ms) || 1000;
+    const modalWaitS = parseInt(config.modal_wait) || 10;
 
     if (!apiUrl) {
         engine._log(executionId, `   - PerimeterX: api_url bi trong`, 'error');
@@ -248,112 +250,176 @@ export async function handlePerimeterX(executionId, config, context, engine) {
     }
 
     // 5. Giai captcha
-    const solved = await _solvePerimeterX(page, engine, executionId);
-    if (!solved) return false;
-
-    // 6. Verify lai
-    await engine._wait(executionId, 2000);
-    try {
-        const res2 = await page.request.get(apiUrl, { timeout: timeoutMs });
-        const status2 = res2.status();
-        if (status2 !== 403) {
-            engine._log(executionId, `   + Giai thanh cong (${status2}) → TRUE`);
-            return true;
-        }
-        engine._log(executionId, `   - Captcha van con (${status2}) → FALSE`, 'warning');
-        return false;
-    } catch (err) {
-        engine._log(executionId, `   - Loi verify sau captcha: ${err.message}`, 'error');
+    const solved = await _solvePerimeterX(page, engine, executionId, apiUrl, timeoutMs, pollMs, modalWaitS * 1000);
+    if (!solved) {
+        engine._log(executionId, `   - Khong giai duoc captcha → FALSE`, 'warning');
         return false;
     }
+    engine._log(executionId, `   + Giai thanh cong → TRUE`);
+    return true;
 }
 
 /**
- * _solvePerimeterX: Press-and-Hold tren iframe PerimeterX
+ * _solvePerimeterX
  *
- * - waitForFunction: tim iframe #px-captcha iframe co display:block
- * - contentFrame() vao iframe → locator #hiLxEKFJvexNHKt
- * - Tinh toa do page (iframe offset + button offset + jitter nho)
- * - mouse.move → mouse.down → giu → detect class JlXLQdNpYTvVrKN hoac #checkmark.draw
- * - mouse.up → return success
+ * Detect thanh cong bang 2 tin hieu:
+ *  1. API apiUrl tra ve 200 → pass → release va return true
+ *  2. auditor.js moi fire trong khi dang giu → captcha refresh → tinh lai toa do va giu lai
+ *
+ * Tranh false positive cua `offsetParent` (modal la position:fixed nen luon null).
  */
-async function _solvePerimeterX(page, engine, executionId) {
-    const MAX_HOLD_MS = 30000;
-    const IFRAME_WAIT_MS = 10000;
+async function _solvePerimeterX(page, engine, executionId, apiUrl, timeoutMs = 300000, pollMs = 1000, modalWaitMs = 10000) {
+    const MAX_TOTAL_MS = timeoutMs;
+    const MODAL_WAIT_MS = modalWaitMs;
+    const API_POLL_MS = pollMs;
+    const globalStart = Date.now();
+
+
+    // Ham tinh toa do target tu DOM
+    async function getTarget() {
+        await page.waitForSelector('.px-modal-title-content', { timeout: MODAL_WAIT_MS });
+
+        const headerSelectors = ['.px-modal-title-content p', '.px-modal-title-content'];
+        const footerSelectors = ['.px-captcha-footer', '.px-help', '.px-modal a[href*="help"]'];
+
+        let headerBox = null, footerBox = null;
+
+        for (const sel of headerSelectors) {
+            try {
+                const loc = page.locator(sel).first();
+                if (await loc.isVisible({ timeout: 2000 }).catch(() => false)) {
+                    headerBox = await loc.boundingBox();
+                    if (headerBox) break;
+                }
+            } catch { /* next */ }
+        }
+        for (const sel of footerSelectors) {
+            try {
+                const loc = page.locator(sel).first();
+                if (await loc.isVisible({ timeout: 2000 }).catch(() => false)) {
+                    footerBox = await loc.boundingBox();
+                    if (footerBox) break;
+                }
+            } catch { /* next */ }
+        }
+
+        if (!headerBox || !footerBox) {
+            // Fallback: 55% chieu cao modal
+            const modalBox = await page.locator('.px-modal').first().boundingBox().catch(() => null);
+            if (!modalBox) throw new Error('Khong tim thay modal element');
+            headerBox = { x: modalBox.x, y: modalBox.y + modalBox.height * 0.35, width: modalBox.width, height: 0 };
+            footerBox = { x: modalBox.x, y: modalBox.y + modalBox.height * 0.75 };
+        }
+
+        return {
+            x: (headerBox.x + headerBox.width / 2) + (Math.random() * 10 - 5),
+            y: ((headerBox.y + headerBox.height + footerBox.y) / 2) + (Math.random() * 8 - 4),
+        };
+    }
 
     try {
-        // A. Tim iframe display:block
-        engine._log(executionId, `   + Tim iframe PerimeterX...`);
+        engine._log(executionId, `   + Cho PerimeterX modal san sang...`);
+        let target = await getTarget();
 
-        const iframeEl = await page.waitForFunction(() => {
-            const frames = document.querySelectorAll(
-                '#px-captcha iframe[title="Human verification challenge"]'
-            );
-            return Array.from(frames).find(f => f.style.display === 'block') || null;
-        }, {}, { timeout: IFRAME_WAIT_MS })
-            .then(h => h.asElement())
-            .catch(() => null);
+        // Signal flags
+        let captchaRefreshed = false;
+        let pageNavigated = false;   // Trang chuyen trang = captcha pass
 
-        if (!iframeEl) {
-            engine._log(executionId, `   - Khong tim thay iframe display:block`, 'error');
-            return false;
-        }
+        // Listener: auditor.js moi = captcha refresh
+        const onReq = req => {
+            if (req.url().includes('crcldu.com/bd/auditor.js')) captchaRefreshed = true;
+        };
+        page.on('request', onReq);
 
-        // B. Vao frame → doi button hien thi
-        const frame = await iframeEl.contentFrame();
-        if (!frame) {
-            engine._log(executionId, `   - Khong access duoc contentFrame`, 'error');
-            return false;
-        }
+        // Listener: trang navigation = tam biet captcha page = PASS
+        const onNav = frame => {
+            if (frame === page.mainFrame()) {
+                const url = page.url();
+                if (!url.includes('enter-email') && !url.includes('perimeterx')) {
+                    pageNavigated = true;
+                }
+            }
+        };
+        page.on('framenavigated', onNav);
 
-        const btn = frame.locator('#hiLxEKFJvexNHKt');
-        await btn.waitFor({ state: 'visible', timeout: 5000 });
-        const btnBox = await btn.boundingBox();
-        const iframeBox = await iframeEl.boundingBox();
+        let attempt = 0;
+        let solved = false;
 
-        if (!btnBox || !iframeBox) {
-            engine._log(executionId, `   - Khong lay duoc bounding box`, 'error');
-            return false;
-        }
+        while (Date.now() - globalStart < MAX_TOTAL_MS && !solved) {
+            attempt++;
+            captchaRefreshed = false;
+            pageNavigated = false;
 
-        // C. Tinh toa do tren page (iframe + button + jitter nho)
-        const targetX = iframeBox.x + btnBox.x + btnBox.width / 2 + (Math.random() * 6 - 3);
-        const targetY = iframeBox.y + btnBox.y + btnBox.height / 2 + (Math.random() * 4 - 2);
-        engine._log(executionId, `   + Press-and-Hold tai (${Math.round(targetX)}, ${Math.round(targetY)})...`);
-
-        // D. Di chuyen → press → giu
-        await page.mouse.move(targetX, targetY, { steps: Math.floor(Math.random() * 10) + 15 });
-        await new Promise(r => setTimeout(r, Math.floor(Math.random() * 300) + 200));
-        await page.mouse.down();
-
-        const holdStart = Date.now();
-        let success = false;
-
-        while (Date.now() - holdStart < MAX_HOLD_MS) {
-            // Phat hien thanh cong:
-            //   - Class JlXLQdNpYTvVrKN xuat hien (button chuyen mau tim)
-            //   - Hoac #checkmark.draw (animation hoan tat)
-            const verified = await frame.evaluate(() => {
-                const b = document.getElementById('hiLxEKFJvexNHKt');
-                const ck = document.getElementById('checkmark');
-                return (b && b.classList.contains('JlXLQdNpYTvVrKN')) ||
-                    (ck && ck.classList.contains('draw')) || false;
-            }).catch(() => false);
-
-            if (verified) {
-                success = true;
-                engine._log(executionId, `   + Xac nhan thanh cong (${Date.now() - holdStart}ms)`);
+            // Re-tinh toa do moi lan → jitter khac nhau moi attempt
+            try {
+                target = await getTarget();
+            } catch (e) {
+                engine._log(executionId, `   - Khong tim thay modal: ${e.message}`, 'error');
                 break;
             }
-            await new Promise(r => setTimeout(r, 100));
+
+            engine._log(executionId, `   + [${attempt}] Press-and-Hold tai (${Math.round(target.x)}, ${Math.round(target.y)})...`);
+            await page.mouse.move(target.x, target.y, { steps: Math.floor(Math.random() * 10) + 15 });
+            await new Promise(r => setTimeout(r, Math.floor(Math.random() * 300) + 200));
+            await page.mouse.down();
+
+
+            const holdStart = Date.now();
+
+            while (Date.now() - globalStart < MAX_TOTAL_MS) {
+                await new Promise(r => setTimeout(r, API_POLL_MS));
+
+                // Signal 1: Trang navigation → PASS ngay lap tuc
+                if (pageNavigated) {
+                    engine._log(executionId, `   + Trang chuyen huong → PASS (${Date.now() - holdStart}ms)`);
+                    solved = true;
+                    break;
+                }
+
+                // Signal 2: API tra 200
+                try {
+                    const res = await page.request.get(apiUrl, { timeout: 5000 });
+                    const status = res.status();
+                    if (status !== 403) {
+                        engine._log(executionId, `   + API tra ${status} sau ${Date.now() - holdStart}ms giu → PASS`);
+                        solved = true;
+                        break;
+                    }
+                } catch { /* tiep tuc giu */ }
+
+                // Signal 3: Captcha refresh → giu lai
+                if (captchaRefreshed) {
+                    engine._log(executionId, `   ! Captcha refresh — tim lai toa do va giu lai...`, 'warning');
+                    break;
+                }
+
+                engine._log(executionId, `   ~ Dang giu... (${Math.round((Date.now() - holdStart) / 1000)}s)`);
+            }
+
+            // Release mouse
+            await page.mouse.up().catch(() => { });
+            await new Promise(r => setTimeout(r, Math.floor(Math.random() * 400) + 300));
+
+            if (solved) break;
+
+            if (captchaRefreshed && Date.now() - globalStart < MAX_TOTAL_MS) {
+                await new Promise(r => setTimeout(r, 1000));
+                try {
+                    target = await getTarget();
+                } catch (e) {
+                    engine._log(executionId, `   - Khong tim thay modal sau refresh: ${e.message}`, 'error');
+                    break;
+                }
+            }
         }
 
-        // Human-like delay truoc khi release
-        await new Promise(r => setTimeout(r, Math.floor(Math.random() * 400) + 200));
-        await page.mouse.up().catch(() => { });
+        page.off('request', onReq);
+        page.off('framenavigated', onNav);
 
-        if (!success) engine._log(executionId, `   - Hold timeout (${MAX_HOLD_MS}ms)`, 'warning');
-        return success;
+        if (!solved) {
+            engine._log(executionId, `   - Timeout (${Math.round((Date.now() - globalStart) / 1000)}s) khong giai duoc`, 'warning');
+        }
+        return solved;
 
     } catch (err) {
         await page.mouse.up().catch(() => { });

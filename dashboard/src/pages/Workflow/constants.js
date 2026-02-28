@@ -24,7 +24,14 @@ export const NODE_TEMPLATES = [
     // Category: Captcha
     {
         type: 'taskNode', label: 'PerimeterX', category: 'Captcha', icon: 'ShieldBan', color: 'bg-rose-500/20 text-rose-400',
-        config: { selector: 'button[type="submit"]', api_url: 'https://www.textnow.com/api/emails/auth/{{email}}', wait_ms: 1500, timeout: 20 }
+        config: {
+            selector: 'button[type="submit"]',
+            api_url: 'https://www.textnow.com/api/emails/auth/{{email}}',
+            wait_ms: 1500,   // ms cho sau khi click truoc khi check API
+            poll_ms: 1000,   // ms giua moi lan poll API trong khi giu
+            modal_wait: 10,     // giay cho captcha modal hien ra
+            timeout: 300,    // giay timeout tong the
+        }
     },
 
     // Category: Email
