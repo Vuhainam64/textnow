@@ -331,7 +331,12 @@ class WorkflowEngine {
 
             return result;
         } catch (err) {
-            throw err;
+            // USER_ABORTED → re-throw de dung han thread
+            if (err.message === 'USER_ABORTED') throw err;
+
+            // Timeout hoac loi khac → log va tra ve false (di nhanh false thay vi dung thread)
+            this._log(executionId, `   Loi: ${err.message}`, 'error', context.threadId);
+            return false;
         }
     }
 

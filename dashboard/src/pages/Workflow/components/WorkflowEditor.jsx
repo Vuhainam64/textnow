@@ -10,6 +10,7 @@ import {
     reconnectEdge,
     useOnSelectionChange,
     ReactFlowProvider,
+    useReactFlow,
 } from '@xyflow/react';
 import { io } from 'socket.io-client';
 import '@xyflow/react/dist/style.css';
@@ -138,10 +139,24 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
     const logDragRef = useRef(null);                              // { startY, startH }
     const [currentExecutionId, setCurrentExecutionId] = useState(null);
     const [activeNodeId, setActiveNodeId] = useState(null);       // Node dang chay
+    const [autoFollow, setAutoFollow] = useState(true);            // Tu dong cuon toi node dang chay
     const [browserPort, setBrowserPort] = useState(null);         // Port CDP khi mo browser
     const [editingPort, setEditingPort] = useState(false);        // Đang sửa port
     const [profileId, setProfileId] = useState(null);             // Profile ID đang chạy
     const [editingProfileId, setEditingProfileId] = useState(false); // Đang sửa Profile ID
+
+    // Hook layout cua ReactFlow
+    const { setCenter, getNode } = useReactFlow();
+
+    // Auto-follow: cuon toi node dang chay
+    useEffect(() => {
+        if (!autoFollow || !activeNodeId) return;
+        const node = getNode(activeNodeId);
+        if (!node) return;
+        const x = node.position.x + (node.measured?.width || 200) / 2;
+        const y = node.position.y + (node.measured?.height || 80) / 2;
+        setCenter(x, y, { zoom: 1, duration: 400 });
+    }, [activeNodeId, autoFollow, getNode, setCenter]);
 
     // Run Modal State
     const [showRunModal, setShowRunModal] = useState(false);
@@ -712,6 +727,21 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                             className="flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-blue-600 shadow-lg shadow-blue-500/20 hover:bg-blue-500 transition-all"
                         >
                             <Play size={14} fill="white" /> Chạy thử
+                        </button>
+                    )}
+
+                    {/* Auto-follow toggle: chi hien khi dang chay */}
+                    {isExecuting && (
+                        <button
+                            onClick={() => setAutoFollow(v => !v)}
+                            title={autoFollow ? 'Tắt theo dõi tự động' : 'Bật theo dõi tự động — màn hình di chuyển tới khối đang chạy'}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${autoFollow
+                                    ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                                    : 'bg-white/5 border-white/10 text-slate-500 hover:text-slate-300'
+                                }`}
+                        >
+                            <Icons.Locate size={13} />
+                            Theo dõi
                         </button>
                     )}
                     <button
