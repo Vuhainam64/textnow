@@ -46,6 +46,7 @@ export const MLXService = {
     getLocalProfiles: () => api.get('/mlx/local-profiles'),
     deleteLocalProfile: (id) => api.delete(`/mlx/local-profiles/${id}`),
     clearLocalProfiles: () => api.delete('/mlx/local-profiles/all'),
+    stopAllProfiles: () => api.post('/mlx/profiles/stop-all'),
 }
 
 export const DashboardService = {
