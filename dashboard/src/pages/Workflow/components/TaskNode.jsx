@@ -57,7 +57,7 @@ const TaskNode = ({ id, data, selected }) => {
                             }`}
                     >
                         <Icons.Play size={7} fill="currentColor" />
-                        {hasPort ? 'Tiep' : 'Tu day'}
+                        {hasPort ? 'Tiếp' : 'Từ đây'}
                     </button>
                 </div>
             )}

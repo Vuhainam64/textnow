@@ -171,7 +171,7 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
             }
         })));
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeNodeId, browserPort, setNodes]);
+    }, [activeNodeId, browserPort, nodes.length, setNodes]);
 
     const addLog = (message, type = 'info') => {
         setLogs(prev => [...prev, {
