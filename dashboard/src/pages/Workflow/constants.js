@@ -19,8 +19,10 @@ export const NODE_TEMPLATES = [
     { type: 'taskNode', label: 'Click chuột', category: 'Thao tác', icon: 'MousePointer2', color: 'bg-purple-500/20 text-purple-400', config: { selector: '', timeout: 30 } },
     { type: 'taskNode', label: 'Nhập văn bản', category: 'Thao tác', icon: 'Keyboard', color: 'bg-amber-500/20 text-amber-400', config: { selector: '', value: '', timeout: 30 } },
     { type: 'taskNode', label: 'Chờ đợi', category: 'Thao tác', icon: 'Clock', color: 'bg-slate-500/20 text-slate-400', config: { seconds: 5, timeout: 60 } },
-    { type: 'taskNode', label: 'Kiểm tra Captcha', category: 'Thao tác', icon: 'ShieldCheck', color: 'bg-rose-500/20 text-rose-400', config: { api_url: 'https://www.textnow.com/api/emails/auth/{{email}}', timeout: 15 } },
-    { type: 'taskNode', label: 'Giải Captcha', category: 'Thao tác', icon: 'ShieldAlert', color: 'bg-orange-500/20 text-orange-400', config: { type: 'hCaptcha', site_key: '', timeout: 120 } },
+
+    // Category: Captcha
+    { type: 'taskNode', label: 'Kiểm tra Captcha', category: 'Captcha', icon: 'ShieldCheck', color: 'bg-rose-500/20 text-rose-400', config: { api_url: 'https://www.textnow.com/api/emails/auth/{{email}}', timeout: 15 } },
+    { type: 'taskNode', label: 'Giải Captcha', category: 'Captcha', icon: 'ShieldAlert', color: 'bg-orange-500/20 text-orange-400', config: { type: 'hCaptcha', site_key: '', timeout: 120 } },
 
     // Category: Email
     { type: 'taskNode', label: 'Kiểm tra Email', category: 'Email', icon: 'Mail', color: 'bg-pink-500/20 text-pink-400', config: { folder: 'INBOX', timeout: 60, search_query: '', retries: 3 } },
