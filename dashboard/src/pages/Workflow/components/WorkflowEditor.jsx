@@ -118,6 +118,9 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
     const [showLogs, setShowLogs] = useState(false);
     const [logs, setLogs] = useState([]);
     const [currentExecutionId, setCurrentExecutionId] = useState(null);
+    const [activeNodeId, setActiveNodeId] = useState(null);       // Node dang chay
+    const [browserPort, setBrowserPort] = useState(null);         // Port CDP khi mo browser
+    const [editingPort, setEditingPort] = useState(false);        // Dang sua port
 
     // Run Modal State
     const [showRunModal, setShowRunModal] = useState(false);
@@ -156,6 +159,20 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
         }
     }, [logs]);
 
+    // Cap nhat data._active, _onResume, _browserPort cho all nodes
+    useEffect(() => {
+        setNodes(nds => nds.map(n => ({
+            ...n,
+            data: {
+                ...n.data,
+                _active: n.id === activeNodeId,
+                _browserPort: browserPort,
+                _onResume: handleResumeFrom,
+            }
+        })));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeNodeId, browserPort, setNodes]);
+
     const addLog = (message, type = 'info') => {
         setLogs(prev => [...prev, {
             id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -164,6 +181,57 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
             time: new Date().toLocaleTimeString()
         }]);
     };
+
+    // Chay tiep tu 1 node cu the (co san browser port)
+    const handleResumeFrom = useCallback(async (nodeId) => {
+        if (!runConfig.account_group_id) {
+            showToast('Chua chon Nhom tai khoan. Bam Chay thu truoc.', 'warning');
+            return;
+        }
+        try {
+            setIsExecuting(true);
+            setShowLogs(true);
+            setLogs([]);
+            addLog(`▶️ Tiep tuc tu khoi: ${nodeId}`, 'info');
+            if (browserPort) addLog(`🔌 Ket noi browser: ws://127.0.0.1:${browserPort}`, 'info');
+
+            await handleSave(true);
+
+            const res = await WorkflowsService.run(workflow._id, {
+                ...runConfig,
+                start_node_id: nodeId,
+                ws_endpoint: browserPort ? `ws://127.0.0.1:${browserPort}` : undefined,
+            });
+            const executionId = res.data?.executionId || res.executionId;
+            if (!executionId) throw new Error('Khong nhan duoc ID thuc thi');
+            setCurrentExecutionId(executionId);
+            addLog(`✅ Server tiep nhan. ID: ${executionId}`, 'success');
+
+            const socket = io('http://localhost:3000');
+            socket.on('connect', () => socket.emit('join-execution', executionId));
+            socket.on('workflow-log', (newLog) => {
+                setLogs(prev => [...prev, {
+                    ...newLog,
+                    id: newLog.id || `${Date.now()}-${Math.random()}`,
+                    time: newLog.timestamp ? new Date(newLog.timestamp).toLocaleTimeString('vi-VN') : new Date().toLocaleTimeString('vi-VN'),
+                }]);
+                const portMatch = newLog?.message?.match(/CDP Port: (\d+)/);
+                if (portMatch) setBrowserPort(portMatch[1]);
+            });
+            socket.on('workflow-node-active', ({ nodeId }) => setActiveNodeId(nodeId));
+            socket.on('workflow-status', (data) => {
+                if (['completed', 'failed', 'stopped'].includes(data.status)) {
+                    setIsExecuting(false); setCurrentExecutionId(null); setActiveNodeId(null);
+                    socket.disconnect();
+                }
+            });
+            socket.on('disconnect', () => setIsExecuting(false));
+        } catch (e) {
+            addLog(`❌ Loi: ${e.message}`, 'error');
+            setIsExecuting(false);
+            setCurrentExecutionId(null);
+        }
+    }, [browserPort, runConfig, workflow._id]);
 
     const handleSave = async (silent = false) => {
         try {
@@ -228,8 +296,20 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                 if (data.status === 'completed' || data.status === 'failed' || data.status === 'stopped') {
                     setIsExecuting(false);
                     setCurrentExecutionId(null);
+                    setActiveNodeId(null);   // Reset highlight
                     socket.disconnect();
                 }
+            });
+
+            // Highlight khối đang chạy
+            socket.on('workflow-node-active', ({ nodeId }) => {
+                setActiveNodeId(nodeId);
+            });
+
+            // Phat hien port tu log
+            socket.on('workflow-log', (newLog) => {
+                const portMatch = newLog?.message?.match(/CDP Port: (\d+)/);
+                if (portMatch) setBrowserPort(portMatch[1]);
             });
 
             socket.on('disconnect', () => {
@@ -459,8 +539,76 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                             <button onClick={() => setShowEditModal(true)} className="text-slate-600 hover:text-blue-400 transition-colors">
                                 <Edit3 size={13} />
                             </button>
+
+                            {/* CDP Port Badge - ke ben title */}
+                            {browserPort && !editingPort && (
+                                <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-white/10">
+                                    <Icons.Plug size={11} className="text-cyan-400" />
+                                    <span className="text-[11px] font-mono font-bold text-cyan-400">
+                                        :{browserPort}
+                                    </span>
+                                    <button
+                                        onClick={() => navigator.clipboard.writeText(`ws://127.0.0.1:${browserPort}`)}
+                                        className="text-cyan-700 hover:text-cyan-300 transition-colors"
+                                        title="Copy ws endpoint"
+                                    >
+                                        <Icons.Copy size={10} />
+                                    </button>
+                                    <button
+                                        onClick={() => setEditingPort(true)}
+                                        className="text-slate-600 hover:text-amber-400 transition-colors"
+                                        title="Sua port"
+                                    >
+                                        <Icons.Pen size={10} />
+                                    </button>
+                                    <button
+                                        onClick={() => setBrowserPort(null)}
+                                        className="text-slate-600 hover:text-red-400 transition-colors"
+                                        title="Reset port"
+                                    >
+                                        <Icons.X size={10} />
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Inline edit port */}
+                            {editingPort && (
+                                <div className="flex items-center gap-1 ml-2 pl-2 border-l border-white/10">
+                                    <Icons.Plug size={11} className="text-cyan-400" />
+                                    <span className="text-[11px] text-slate-500 font-mono">127.0.0.1:</span>
+                                    <input
+                                        autoFocus
+                                        defaultValue={browserPort || ''}
+                                        className="w-14 bg-transparent border-b border-cyan-500/50 text-[11px] font-mono text-cyan-300 focus:outline-none px-0.5"
+                                        placeholder="PORT"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                setBrowserPort(e.target.value || null);
+                                                setEditingPort(false);
+                                            }
+                                            if (e.key === 'Escape') setEditingPort(false);
+                                        }}
+                                        onBlur={(e) => {
+                                            setBrowserPort(e.target.value || null);
+                                            setEditingPort(false);
+                                        }}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Hien thi nut them port khi chua co */}
+                            {!browserPort && !editingPort && (
+                                <button
+                                    onClick={() => setEditingPort(true)}
+                                    className="ml-2 pl-2 border-l border-white/5 flex items-center gap-1 text-slate-700 hover:text-cyan-400 transition-colors text-[10px]"
+                                    title="Them CDP port de resume"
+                                >
+                                    <Icons.Plug size={10} />
+                                    <span>Port</span>
+                                </button>
+                            )}
                         </div>
-                        <p className="text-[10px] text-slate-500">Đang thiết kế quy trình tự động hóa</p>
+                        <p className="text-[10px] text-slate-500">Đang thiết kế quy trình tự động hoá</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-3">

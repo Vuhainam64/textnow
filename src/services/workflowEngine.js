@@ -3,7 +3,7 @@ import Proxy from '../models/Proxy.js';
 import socketService from './socketService.js';
 // Node handlers — each file handles a category of workflow blocks
 import { handleKhaiBaoBien, handleLapLai, handleDieuKien, handleChoDoi } from './nodeHandlers/logicNodes.js';
-import { handleTaoProfile, handleMoTrinhDuyet, handleMoTrangWeb, handleClickChuot, handleNhapVanBan, handleDongTrinhDuyet, handleXoaProfile, handleXoaProfileLocal, handleCapNhatTrangThai, handlePerimeterX } from './nodeHandlers/browserNodes.js';
+import { handleTaoProfile, handleMoTrinhDuyet, handleKetNoiBrowser, handleMoTrangWeb, handleClickChuot, handleNhapVanBan, handleDongTrinhDuyet, handleXoaProfile, handleXoaProfileLocal, handleCapNhatTrangThai, handlePerimeterX } from './nodeHandlers/browserNodes.js';
 import { handleKiemTraEmail, handleDocEmail, handleXoaMail } from './nodeHandlers/emailNodes.js';
 
 class WorkflowEngine {
@@ -63,9 +63,11 @@ class WorkflowEngine {
                 target_statuses = ['active'],
                 proxy_group_id,
                 new_password = '',
-                limit = null,       // null = không giới hạn, số = chạy tối đa N acc
+                limit = null,
                 threads = 1,
                 startup_delay = 0,
+                start_node_id = null,   // Resume: bat dau tu node cu the
+                ws_endpoint = null,   // Resume: dung lai browser session
             } = options;
 
             if (!account_group_id) throw new Error('Thiếu account_group_id — vui lòng chọn Nhóm tài khoản khi chạy');
@@ -163,9 +165,46 @@ class WorkflowEngine {
                         }
                     }
 
-                    // Chạy graph
-                    let currentNodeId = sourceNode.id;
+                    // Chay graph (co the bat dau tu node bat ki)
+                    let startId = sourceNode.id;
+                    if (start_node_id) {
+                        const targetNode = nodes.find(n => n.id === start_node_id);
+                        if (targetNode) {
+                            startId = start_node_id;
+                            this._log(executionId, `   + Resume tu khoi: ${targetNode.data?.label || start_node_id}`, 'default', threadId);
+                        } else {
+                            this._log(executionId, `   - Khong tim thay start_node_id: ${start_node_id}. Dung START.`, 'warning', threadId);
+                        }
+                    }
+
+                    // Neu co ws_endpoint -> ket noi lai browser session (bo qua tao/mo profile)
+                    if (ws_endpoint) {
+                        try {
+                            const { connectBrowser, getPage } = await import('./browserService.js');
+                            const { browser, context: bCtx } = await connectBrowser(ws_endpoint);
+                            context.browser = browser;
+                            context.context = bCtx;
+                            context.page = await getPage(bCtx);
+                            context.wsEndpoint = ws_endpoint;
+                            const portMatch = ws_endpoint.match(/(\d{4,5})/);
+                            this._log(executionId, `   + Ket noi browser tai: ${ws_endpoint.split('/')[2]} (port ${portMatch?.[1] || '?'})`, 'default', threadId);
+                        } catch (err) {
+                            this._log(executionId, `   - Khong ket noi duoc browser: ${err.message}`, 'error', threadId);
+                        }
+                    }
+
+                    let currentNodeId = startId;
                     let currentResult = true;
+
+                    // Neu resume (start_node_id != sourceNode) → execute chinh node do truoc
+                    // Vi loop chi execute nextNode cua currentNodeId, nen node start phai chay rieng
+                    if (start_node_id && startId !== sourceNode.id) {
+                        const startNodeObj = nodes.find(n => n.id === startId);
+                        if (startNodeObj) {
+                            currentResult = await this._executeNode(executionId, startNodeObj, context);
+                            if (currentResult === undefined || currentResult === null) currentResult = true;
+                        }
+                    }
 
                     while (true) {
                         if (this.activeExecutions.get(executionId)?.status === 'stopping') {
@@ -263,6 +302,9 @@ class WorkflowEngine {
         const { label, config } = node.data;
         this._log(executionId, `⚙️ Đang thực hiện: ${label}...`);
 
+        // Emit node-active để frontend highlight khối đang chạy
+        socketService.to(executionId).emit('workflow-node-active', { nodeId: node.id });
+
         try {
             const timeoutSec = parseInt(config?.timeout) || 60;
 
@@ -307,6 +349,7 @@ class WorkflowEngine {
             // ── Browser / Profile ─────────────────────────────────────────────
             case 'Tạo profile mới': return handleTaoProfile(executionId, config, context, this);
             case 'Mở trình duyệt': return handleMoTrinhDuyet(executionId, config, context, this);
+            case 'Kết nối Browser': return handleKetNoiBrowser(executionId, config, context, this);
             case 'Mở trang web': return handleMoTrangWeb(executionId, config, context, this);
             case 'Click chuột': return handleClickChuot(executionId, config, context, this);
             case 'Nhập văn bản': return handleNhapVanBan(executionId, config, context, this);

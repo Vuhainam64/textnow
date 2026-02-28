@@ -19,7 +19,7 @@ function getSocket() {
  * @param {string|null} executionId
  * @param {{ onLog, onThreadUpdate, onStatusChange }} handlers
  */
-export function useExecutionSocket(executionId, { onLog, onThreadUpdate, onStatusChange } = {}) {
+export function useExecutionSocket(executionId, { onLog, onThreadUpdate, onStatusChange, onNodeActive } = {}) {
     const socket = useRef(getSocket());
 
     useEffect(() => {
@@ -31,15 +31,18 @@ export function useExecutionSocket(executionId, { onLog, onThreadUpdate, onStatu
         const handleLog = (data) => onLog?.(data);
         const handleThread = (data) => onThreadUpdate?.(data);
         const handleStatus = (data) => onStatusChange?.(data);
+        const handleActive = (data) => onNodeActive?.(data);
 
         s.on('workflow-log', handleLog);
         s.on('workflow-thread-update', handleThread);
         s.on('workflow-status', handleStatus);
+        s.on('workflow-node-active', handleActive);
 
         return () => {
             s.off('workflow-log', handleLog);
             s.off('workflow-thread-update', handleThread);
             s.off('workflow-status', handleStatus);
+            s.off('workflow-node-active', handleActive);
         };
-    }, [executionId, onLog, onThreadUpdate, onStatusChange]);
+    }, [executionId, onLog, onThreadUpdate, onStatusChange, onNodeActive]);
 }

@@ -71,9 +71,11 @@ router.post('/:id/run', async (req, res) => {
             proxy_group_id = null,
             target_statuses = ['active'],
             new_password = '',
-            limit,          // số acc muốn chạy, undefined/'' = tất cả
+            limit,
             threads = 1,
             startup_delay = 0,
+            start_node_id = null,   // Resume: bat dau tu node cu the
+            ws_endpoint = null,   // Resume: dung lai browser session
         } = req.body;
 
         const executionId = await WorkflowEngine.execute(workflow, {
@@ -84,12 +86,14 @@ router.post('/:id/run', async (req, res) => {
             limit: limit ? parseInt(limit) : null,
             threads: parseInt(threads) || 1,
             startup_delay: parseInt(startup_delay) || 0,
+            start_node_id,
+            ws_endpoint,
         });
 
         res.json({
             success: true,
             executionId,
-            message: `Đã khởi chạy quy trình "${workflow.name}" thành công!`
+            message: `Da khoi chay quy trinh "${workflow.name}" thanh cong!`
         });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });

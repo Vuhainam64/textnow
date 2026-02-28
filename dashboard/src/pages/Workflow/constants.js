@@ -10,6 +10,7 @@ export const NODE_TEMPLATES = [
     // Category: Profile
     { type: 'taskNode', label: 'Tạo profile mới', category: 'Profile', icon: 'UserPlus', color: 'bg-indigo-500/20 text-indigo-400', config: { initial_url: 'https://google.com', proxy_mode: 'auto', timeout: 60 } },
     { type: 'taskNode', label: 'Mở trình duyệt', category: 'Profile', icon: 'MonitorPlay', color: 'bg-blue-500/20 text-blue-400', config: { timeout: 60 } },
+    { type: 'taskNode', label: 'Kết nối Browser', category: 'Profile', icon: 'Plug', color: 'bg-cyan-500/20 text-cyan-400', config: { ws_endpoint: 'ws://127.0.0.1:PORT', timeout: 15 } },
     { type: 'taskNode', label: 'Đóng trình duyệt', category: 'Profile', icon: 'MonitorOff', color: 'bg-rose-500/20 text-rose-400', config: { timeout: 30 } },
     { type: 'taskNode', label: 'Xoá profile', category: 'Profile', icon: 'Trash2', color: 'bg-red-500/20 text-red-400', config: { timeout: 30 } },
     { type: 'taskNode', label: 'Xoá profile local', category: 'Profile', icon: 'FolderX', color: 'bg-orange-600/20 text-orange-400', config: { timeout: 30 } },
