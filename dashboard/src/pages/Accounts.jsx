@@ -1,7 +1,7 @@
-﻿import { useEffect, useState, useCallback } from 'react'
+﻿import { useEffect, useState, useCallback, useRef } from 'react'
 import {
     Plus, Search, Trash2, Edit3, ChevronLeft, ChevronRight,
-    Upload, X, AlertCircle, Users, FolderOpen, Pencil, Check
+    Upload, X, AlertCircle, Users, FolderOpen, Pencil, Check, FileText
 } from 'lucide-react'
 import { AccountsService } from '../services/apiService'
 import Select from '../components/Select'
@@ -122,6 +122,8 @@ export default function Accounts() {
     const [showImport, setShowImport] = useState(false)
     const [importText, setImportText] = useState('')
     const [importLoading, setImportLoading] = useState(false)
+    const [importProgress, setImportProgress] = useState(null) // { done, total, inserted }
+    const fileInputRef = useRef(null)
     const [deleteAccountTarget, setDeleteAccountTarget] = useState(null)
     const [stats, setStats] = useState([])
     const [showDeleteAll, setShowDeleteAll] = useState(false)
@@ -253,55 +255,51 @@ export default function Accounts() {
     const handleImport = async () => {
         if (!importText.trim()) return
         setImportLoading(true)
+        setImportProgress(null)
         try {
             const list = importText.trim().split('\n').filter(Boolean).map(line => {
                 const parts = line.split('|').map(p => p.trim());
-
                 if (parts.length === 6) {
                     const [tnUser, tnPass, hmUser, hmPass, hmToken, hmClientId] = parts;
-                    return {
-                        textnow_user: tnUser,
-                        textnow_pass: tnPass,
-                        hotmail_user: hmUser,
-                        hotmail_pass: hmPass,
-                        hotmail_token: hmToken,
-                        hotmail_client_id: hmClientId,
-                        status: 'pending'
-                    };
+                    return { textnow_user: tnUser, textnow_pass: tnPass, hotmail_user: hmUser, hotmail_pass: hmPass, hotmail_token: hmToken, hotmail_client_id: hmClientId, status: 'pending' };
                 } else if (parts.length === 4) {
                     const [hmUser, hmPass, hmToken, hmClientId] = parts;
-                    return {
-                        textnow_user: hmUser,
-                        textnow_pass: hmPass,
-                        hotmail_user: hmUser,
-                        hotmail_pass: hmPass,
-                        hotmail_token: hmToken,
-                        hotmail_client_id: hmClientId,
-                        status: 'pending'
-                    };
+                    return { textnow_user: hmUser, textnow_pass: hmPass, hotmail_user: hmUser, hotmail_pass: hmPass, hotmail_token: hmToken, hotmail_client_id: hmClientId, status: 'pending' };
                 }
-
-                // Fallback for old format if someone still uses it (colon)
                 if (line.includes(':')) {
                     const [textnow_user, textnow_pass, hotmail_user, hotmail_pass] = line.split(':');
                     return { textnow_user, textnow_pass, hotmail_user, hotmail_pass, status: 'pending' };
                 }
-
                 return null;
             }).filter(Boolean);
 
-            if (list.length === 0) {
-                showToast('Không có dữ liệu hợp lệ để nhập', 'warning');
-                setImportLoading(false);
-                return;
-            }
+            if (list.length === 0) { showToast('Không có dữ liệu hợp lệ để nhập', 'warning'); return; }
+
             const gid = selectedGroup !== '__all__' && selectedGroup !== '__ungrouped__' ? selectedGroup : undefined
-            const res = await AccountsService.importAccounts({ accounts: list, group_id: gid })
-            showToast(`✅ Đã nhập ${res.inserted} tài khoản`)
-            setShowImport(false); setImportText('')
+            const BATCH = 500;
+            let totalInserted = 0;
+
+            for (let i = 0; i < list.length; i += BATCH) {
+                setImportProgress({ done: i, total: list.length, inserted: totalInserted });
+                const chunk = list.slice(i, i + BATCH);
+                const res = await AccountsService.importAccounts({ accounts: chunk, group_id: gid });
+                totalInserted += res.inserted || 0;
+            }
+            setImportProgress({ done: list.length, total: list.length, inserted: totalInserted });
+            showToast(`✅ Đã nhập ${totalInserted} tài khoản (${list.length} dòng)`)
+            setShowImport(false); setImportText('');
             loadAccounts(1); loadGroups()
         } catch (e) { showToast(e.message, 'error') }
-        finally { setImportLoading(false) }
+        finally { setImportLoading(false); setImportProgress(null); }
+    }
+
+    const handleFileSelect = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => setImportText(ev.target.result);
+        reader.readAsText(file, 'utf-8');
+        e.target.value = '';
     }
 
     // Current group info
@@ -464,7 +462,7 @@ export default function Accounts() {
                 </Modal>
             )}
             {showImport && (
-                <Modal title="Nhập hàng loạt tài khoản" onClose={() => setShowImport(false)}>
+                <Modal title="Nhập hàng loạt tài khoản" onClose={() => { setShowImport(false); setImportText(''); setImportProgress(null); }}>
                     <div className="space-y-3">
                         <div className="p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl space-y-2">
                             <p className="text-[11px] text-slate-400 font-medium">Hỗ trợ 2 định dạng (dùng dấu <code className="text-blue-400 font-bold">|</code> để ngăn cách):</p>
@@ -474,14 +472,43 @@ export default function Accounts() {
                             </ul>
                             {currentGroup && <p className="text-[10px] text-emerald-400 font-medium pt-1">→ Tài khoản sẽ được thêm vào nhóm: <span className="underline">{currentGroup.name}</span></p>}
                         </div>
+
+                        {/* File upload + line count */}
+                        <div className="flex items-center gap-2">
+                            <input ref={fileInputRef} type="file" accept=".txt,.csv" className="hidden" onChange={handleFileSelect} />
+                            <button onClick={() => fileInputRef.current?.click()}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 text-xs hover:bg-white/10 transition-all">
+                                <FileText size={13} /> Chọn file .txt
+                            </button>
+                            {importText && (() => {
+                                const count = importText.trim().split('\n').filter(Boolean).length;
+                                return <span className="text-xs text-slate-500">{count.toLocaleString()} dòng</span>;
+                            })()}
+                        </div>
+
                         <textarea rows={10} value={importText} onChange={e => setImportText(e.target.value)}
                             className="w-full bg-[#0f1117] border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 placeholder:text-slate-700 focus:outline-none focus:border-blue-500/40 resize-none scrollbar-thin scrollbar-thumb-slate-800"
                             placeholder="user|pass|email@hotmail.com|pass|token|clientid&#10;email@hotmail.com|pass|token|clientid" />
+
+                        {/* Progress bar */}
+                        {importProgress && (
+                            <div className="space-y-1.5">
+                                <div className="flex justify-between text-[10px] text-slate-500">
+                                    <span>Batch {Math.ceil(importProgress.done / 500)}/{Math.ceil(importProgress.total / 500)}</span>
+                                    <span>{importProgress.inserted} đã nhập</span>
+                                </div>
+                                <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                    <div className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                                        style={{ width: `${(importProgress.done / importProgress.total) * 100}%` }} />
+                                </div>
+                            </div>
+                        )}
+
                         <div className="flex justify-end gap-2">
-                            <button onClick={() => setShowImport(false)} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Huỷ</button>
-                            <button onClick={handleImport} disabled={importLoading}
+                            <button onClick={() => { setShowImport(false); setImportText(''); }} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Huỷ</button>
+                            <button onClick={handleImport} disabled={importLoading || !importText.trim()}
                                 className="px-5 py-2 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-60 transition-all">
-                                {importLoading ? 'Đang nhập...' : 'Nhập tài khoản'}
+                                {importLoading ? `Đang nhập...` : `Nhập tài khoản`}
                             </button>
                         </div>
                     </div>

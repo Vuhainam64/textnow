@@ -27,6 +27,9 @@ import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+const execAsync = promisify(exec);
 
 // ─── Lazy config reader ───────────────────────────────────────────────────────
 // Hàm này đọc env tại thời điểm GỌI (không phải lúc module load)
@@ -591,6 +594,26 @@ class MLXService {
             return response.data?.status?.http_code === 200;
         } catch (err) {
             return false;
+        }
+    }
+    /**
+     * Dung tat ca tien trinh mimic_133.7 dang chay.
+     */
+    async stopAllMimicProcesses() {
+        console.log('[MLX] 🔄 Dung tat ca tien trinh mimic_133.7...');
+        try {
+            if (process.platform === 'win32') {
+                await execAsync(`powershell -Command "Get-Process | Where-Object {$_.Path -like '*mimic_133.7*'} | Stop-Process -Force"`);
+            } else {
+                await execAsync('pkill -f "mimic_133.7"');
+            }
+            await new Promise(r => setTimeout(r, 2000));
+            console.log('[MLX] ✅ Da dung tat ca tien trinh mimic');
+            return true;
+        } catch (err) {
+            // pkill tra exit code 1 khi khong tim thay process → khong phai loi that su
+            console.warn('[MLX] ⚠️ stopAllMimicProcesses:', err.message);
+            return true;
         }
     }
 }

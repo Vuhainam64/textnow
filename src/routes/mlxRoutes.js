@@ -269,4 +269,17 @@ router.get('/agent/status', async (req, res) => {
     }
 });
 
+/**
+ * POST /api/mlx/profiles/stop-all
+ * Dung tat ca tien trinh mimic dang chay.
+ */
+router.post('/profiles/stop-all', async (req, res) => {
+    try {
+        await mlx.stopAllMimicProcesses();
+        res.json({ success: true, message: 'Đã dừng tất cả tiến trình mimic' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 export default router;

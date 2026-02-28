@@ -115,6 +115,7 @@ export default function History() {
     const [execStatus, setExecStatus] = useState(null);
     const [logsLoading, setLogsLoading] = useState(false);
     const [stopping, setStopping] = useState(false);
+    const [stoppingAll, setStoppingAll] = useState(false);
     const logEndRef = useRef(null);
     const listPollRef = useRef(null);
 
@@ -246,6 +247,16 @@ export default function History() {
         } catch (e) {
             showToast(e.response?.data?.error || e.message, 'error');
         } finally { setStopping(false); }
+    };
+
+    const handleStopAll = async () => {
+        setStoppingAll(true);
+        try {
+            await fetch('/api/mlx/profiles/stop-all', { method: 'POST' });
+            showToast('Đã dừng tất cả tiến trình mimic', 'warning');
+        } catch (e) {
+            showToast(e.message, 'error');
+        } finally { setStoppingAll(false); }
     };
 
     const selected = executions.find(e => e.executionId === selectedId);
@@ -412,6 +423,16 @@ export default function History() {
                                     </button>
                                 )}
 
+                                {/* Stop All Mimic */}
+                                <button
+                                    onClick={handleStopAll}
+                                    disabled={stoppingAll}
+                                    title="Dừng tất cả tiến trình mimic đang chạy"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs font-bold hover:bg-orange-500/20 transition-all disabled:opacity-50"
+                                >
+                                    {stoppingAll ? <Loader2 size={12} className="animate-spin" /> : <XCircle size={12} />} Dừng tất cả
+                                </button>
+
                                 <button onClick={() => loadDetail(selectedId)}
                                     className="p-2 rounded-xl bg-white/5 text-slate-500 hover:bg-white/10 transition-all">
                                     <RefreshCcw size={13} className={logsLoading ? 'animate-spin' : ''} />
@@ -492,7 +513,7 @@ export default function History() {
                             })()
                         ) : (
                             /* ─ THREAD VIEW ─ */
-                            <div className="flex-1 overflow-y-auto p-5 space-y-3">
+                            <div className="flex-1 overflow-y-auto p-5 space-y-3 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
                                 {threadList.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center h-40 text-slate-600 gap-3">
                                         <User size={24} />

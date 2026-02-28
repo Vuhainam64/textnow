@@ -1,7 +1,7 @@
-﻿import { useEffect, useState, useCallback } from 'react'
+﻿import { useEffect, useState, useCallback, useRef } from 'react'
 import {
     Plus, Search, Trash2, Edit3, ChevronLeft, ChevronRight,
-    Upload, Globe, FolderOpen, Pencil, Check,
+    Upload, Globe, FolderOpen, Pencil, Check, FileText,
 } from 'lucide-react'
 import { ProxiesService } from '../services/apiService'
 import Select from '../components/Select'
@@ -116,6 +116,8 @@ export default function Proxies() {
     const [importType, setImportType] = useState('http')
     const [importStatus, setImportStatus] = useState('active')
     const [importLoading, setImportLoading] = useState(false)
+    const [importProgress, setImportProgress] = useState(null)
+    const fileInputRef = useRef(null)
     const [assignForm, setAssignForm] = useState({ mode: 'existing', group_id: '', name: '', description: '', color: '#3b82f6', count: '' })
     const [showAssign, setShowAssign] = useState(false)
     const [assignLoading, setAssignLoading] = useState(false)
@@ -186,18 +188,33 @@ export default function Proxies() {
     const handleImport = async () => {
         if (!importText.trim()) return
         setImportLoading(true)
+        setImportProgress(null)
         try {
             const gid = selectedGroup !== '__all__' && selectedGroup !== '__ungrouped__' ? selectedGroup : undefined
-            const res = await ProxiesService.importProxies({
-                raw: importText,
-                group_id: gid,
-                type: importType,
-                status: importStatus
-            })
-            showToast(`✅ Đã nhập ${res.inserted} proxy`)
+            const lines = importText.trim().split('\n').filter(Boolean);
+            const BATCH = 500;
+            let totalInserted = 0;
+
+            for (let i = 0; i < lines.length; i += BATCH) {
+                setImportProgress({ done: i, total: lines.length, inserted: totalInserted });
+                const chunk = lines.slice(i, i + BATCH).join('\n');
+                const res = await ProxiesService.importProxies({ raw: chunk, group_id: gid, type: importType, status: importStatus });
+                totalInserted += res.inserted || 0;
+            }
+            setImportProgress({ done: lines.length, total: lines.length, inserted: totalInserted });
+            showToast(`✅ Đã nhập ${totalInserted} proxy`);
             setShowImport(false); setImportText(''); load(1); loadGroups()
         } catch (e) { showToast(e.message, 'error') }
-        finally { setImportLoading(false) }
+        finally { setImportLoading(false); setImportProgress(null); }
+    }
+
+    const handleFileSelectProxy = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => setImportText(ev.target.result);
+        reader.readAsText(file, 'utf-8');
+        e.target.value = '';
     }
 
     const confirmAssign = async () => {
@@ -242,7 +259,7 @@ export default function Proxies() {
                 </Modal>
             )}
             {showImport && (
-                <Modal title="Nhập hàng loạt proxy" onClose={() => setShowImport(false)}>
+                <Modal title="Nhập hàng loạt proxy" onClose={() => { setShowImport(false); setImportText(''); setImportProgress(null); }}>
                     <div className="space-y-4">
                         <div className="grid grid-cols-2 gap-3">
                             <div>
@@ -262,18 +279,50 @@ export default function Proxies() {
                                 </Select>
                             </div>
                         </div>
+
                         <div className="space-y-1.5">
-                            <label className="text-xs text-slate-500 block font-medium">Danh sách Proxy *</label>
-                            <p className="text-[10px] text-slate-600">
-                                Định dạng: <code className="text-blue-400">host:port:username:password</code> (mỗi proxy một dòng)
-                            </p>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <label className="text-xs text-slate-500 block font-medium">Danh sách Proxy *</label>
+                                    <p className="text-[10px] text-slate-600">
+                                        Định dạng: <code className="text-blue-400">host:port:username:password</code> (mỗi proxy một dòng)
+                                    </p>
+                                </div>
+                                {/* File picker + stats */}
+                                <div className="flex items-center gap-2">
+                                    {importText && (() => {
+                                        const count = importText.trim().split('\n').filter(Boolean).length;
+                                        return <span className="text-[10px] text-slate-500">{count.toLocaleString()} dòng</span>;
+                                    })()}
+                                    <input ref={fileInputRef} type="file" accept=".txt,.csv" className="hidden" onChange={handleFileSelectProxy} />
+                                    <button onClick={() => fileInputRef.current?.click()}
+                                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-slate-400 text-[11px] hover:bg-white/10 transition-all">
+                                        <FileText size={11} /> Chọn file
+                                    </button>
+                                </div>
+                            </div>
                             <textarea rows={8} value={importText} onChange={e => setImportText(e.target.value)}
                                 className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 resize-none scrollbar-thin scrollbar-thumb-slate-700 font-mono"
                                 placeholder="192.168.1.1:8080:user:pass&#10;10.0.0.1:3128" />
                         </div>
+
+                        {/* Progress bar */}
+                        {importProgress && (
+                            <div className="space-y-1.5">
+                                <div className="flex justify-between text-[10px] text-slate-500">
+                                    <span>Batch {Math.ceil(importProgress.done / 500)}/{Math.ceil(importProgress.total / 500)}</span>
+                                    <span>{importProgress.inserted} đã nhập {importProgress.dups > 0 && `· bỏ ${importProgress.dups} trùng`}</span>
+                                </div>
+                                <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                    <div className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                                        style={{ width: `${(importProgress.done / importProgress.total) * 100}%` }} />
+                                </div>
+                            </div>
+                        )}
+
                         <div className="flex justify-end gap-2">
-                            <button onClick={() => setShowImport(false)} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Huỷ</button>
-                            <button onClick={handleImport} disabled={importLoading} className="px-5 py-2 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-60 transition-all">
+                            <button onClick={() => { setShowImport(false); setImportText(''); }} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Huỷ</button>
+                            <button onClick={handleImport} disabled={importLoading || !importText.trim()} className="px-5 py-2 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-60 transition-all">
                                 {importLoading ? 'Đang nhập...' : 'Nhập proxy'}
                             </button>
                         </div>

@@ -153,10 +153,10 @@ export async function handleXoaProfileLocal(executionId, config, context, engine
 
 export async function handleCapNhatTrangThai(executionId, config, context, engine) {
     const newStatus = config.status || 'die_mail';
-    engine._log(executionId, `   + Dang cap nhat trang thai tai khoan thanh: ${newStatus}`);
+    engine._log(executionId, `   + Dang cap nhat trang thai tai khoan thanh: ${newStatus}`, 'default', context.threadId);
     await Account.findByIdAndUpdate(context.account._id, { status: newStatus });
     context.account.status = newStatus;
-    engine._log(executionId, `   + Da cap nhat trang thai thanh cong.`);
+    engine._log(executionId, `   + Da cap nhat trang thai thanh cong.`, 'success', context.threadId);
     return true;
 }
 
