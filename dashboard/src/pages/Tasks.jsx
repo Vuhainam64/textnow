@@ -132,7 +132,12 @@ export default function Tasks() {
 
         setRunning(true)
         try {
-            const res = await WorkflowsService.run(selectedWf._id, runConfig)
+            const res = await WorkflowsService.run(selectedWf._id, {
+                ...runConfig,
+                threads: parseInt(runConfig.threads) || 1,
+                startup_delay: parseInt(runConfig.startup_delay) || 0,
+                limit: runConfig.limit !== '' ? parseInt(runConfig.limit) : undefined,
+            })
             const execId = res.data?.executionId || res.executionId
             showToast(`✅ Đã khởi chạy!`, 'success')
             // Chuyển sang trang lịch sử và highlight execution vừa chạy
@@ -376,7 +381,7 @@ export default function Tasks() {
                                         <input
                                             type="number" min="1" max="50"
                                             value={runConfig.threads}
-                                            onChange={e => setRunConfig(c => ({ ...c, threads: parseInt(e.target.value) || 1 }))}
+                                            onChange={e => setRunConfig(c => ({ ...c, threads: e.target.value }))}
                                             className={inputCls}
                                         />
                                         <p className="text-[10px] text-slate-600 mt-1.5 italic">Luồng chạy song song cùng lúc</p>
@@ -388,7 +393,7 @@ export default function Tasks() {
                                         <input
                                             type="number" min="0" max="60"
                                             value={runConfig.startup_delay}
-                                            onChange={e => setRunConfig(c => ({ ...c, startup_delay: parseInt(e.target.value) || 0 }))}
+                                            onChange={e => setRunConfig(c => ({ ...c, startup_delay: e.target.value }))}
                                             className={inputCls}
                                         />
                                         <p className="text-[10px] text-slate-600 mt-1.5 italic">Mỗi luồng cách nhau bao nhiêu giây</p>
