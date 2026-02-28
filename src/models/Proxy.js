@@ -63,8 +63,8 @@ const proxySchema = new mongoose.Schema(
     }
 );
 
-// Index composite để tránh trùng lặp proxy
-proxySchema.index({ host: 1, port: 1 }, { unique: true });
+// Index composite de tang toc truy van (khong bat buoc unique)
+proxySchema.index({ host: 1, port: 1 });
 
 const Proxy = mongoose.model('Proxy', proxySchema);
 
