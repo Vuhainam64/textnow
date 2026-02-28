@@ -92,9 +92,19 @@ export function getActiveServer() {
 
 /**
  * Lấy base URL của active server.
- * Dev mode fallback cứng về '/api' nếu không tìm thấy server.
+ *
+ * Dev mode:
+ *  - Nếu user CHƯA chủ động switch server trong tab này → trả ngay '/api' (Vite proxy)
+ *    KHÔNG đọc localStorage vì localStorage có thể chứa URL Vercel từ production.
+ *  - Nếu user ĐÃ switch → dùng URL của server đó.
+ *
+ * Production:
+ *  - Đọc từ localStorage như bình thường.
  */
 export function getActiveBaseUrl() {
+    if (IS_DEV && !sessionStorage.getItem(SESSION_ACTIVE_KEY)) {
+        return '/api'
+    }
     const server = getActiveServer()
     return server?.url || (IS_DEV ? '/api' : (import.meta.env.VITE_API_URL || '/api'))
 }
