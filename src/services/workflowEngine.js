@@ -354,7 +354,7 @@ class WorkflowEngine {
 
     _resolveValue(value, context) {
         if (!value || typeof value !== 'string') return value;
-        return value.replace(/{{\w+}}/g, (_, key) => {
+        return value.replace(/{{(\w+)}}/g, (_, key) => {
             if (key === 'email') return context.account?.textnow_user || '';
             if (key === 'pass') return context.account?.textnow_pass || '';
             if (key === 'hotmail') return context.account?.hotmail_user || '';
