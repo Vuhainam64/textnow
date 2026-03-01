@@ -555,14 +555,18 @@ export default function History() {
                                                         ? 'bg-rose-500/5 border-rose-500/40'
                                                         : 'bg-amber-500/5 border-amber-500/40'
                                                         }`}>
-                                                        <span className="text-slate-700 shrink-0 text-[10px] mt-0.5 w-16">
+                                                        <span className="text-slate-700 shrink-0 text-[10px] mt-0.5 w-14 font-mono">
                                                             {log.timestamp ? new Date(log.timestamp).toLocaleTimeString('vi-VN') : ''}
                                                         </span>
-                                                        {log.threadId && (
-                                                            <span className="text-[10px] text-slate-500 shrink-0 font-mono truncate max-w-[110px]" title={log.threadId}>
-                                                                [{log.threadId.split('@')[0]}]
-                                                            </span>
-                                                        )}
+                                                        {(() => {
+                                                            const acc = log.threadId ? log.threadId.split('@')[0] : null;
+                                                            const acColor = acc ? getAccountColor(acc, accountColorCache) : null;
+                                                            return acc ? (
+                                                                <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md border font-mono max-w-[120px] truncate ${acColor?.pill}`} title={log.threadId}>
+                                                                    {acc}
+                                                                </span>
+                                                            ) : <span className="shrink-0 w-[80px]" />;
+                                                        })()}
                                                         <span className={`flex-1 break-all ${log.type === 'error' ? 'text-rose-400' : 'text-amber-400'
                                                             }`}>{log.message}</span>
                                                     </div>
@@ -651,21 +655,40 @@ export default function History() {
                                             );
                                         })()}
 
-                                        {/* Thread cards - chi hien thi luong dang chay */}
-                                        {threadList
-                                            .filter(t => t.status === 'running')
-                                            .sort((a, b) => a.index - b.index)
-                                            .map(thread => (
-                                                <ThreadCard key={thread.user} thread={thread} />
-                                            ))}
+                                        {/* Thread cards - running first, then completed */}
+                                        {(() => {
+                                            const running = threadList.filter(t => t.status === 'running').sort((a, b) => a.index - b.index);
+                                            const done = threadList.filter(t => t.status !== 'running').sort((a, b) => a.index - b.index);
+                                            return (
+                                                <>
+                                                    {/* Đang chạy */}
+                                                    {running.length > 0 && (
+                                                        <>
+                                                            <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-1">Đang chạy ({running.length})</p>
+                                                            {running.map(t => <ThreadCard key={t.user} thread={t} />)}
+                                                        </>
+                                                    )}
 
-                                        {/* Khi khong co luong nao dang chay */}
-                                        {threadList.length > 0 && threadList.filter(t => t.status === 'running').length === 0 && (
-                                            <div className="flex flex-col items-center justify-center h-20 text-slate-600 gap-2">
-                                                <CheckCircle2 size={20} className="text-emerald-700" />
-                                                <p className="text-xs">Tất cả luồng đã hoàn thành</p>
-                                            </div>
-                                        )}
+                                                    {/* Đã xong */}
+                                                    {done.length > 0 && (
+                                                        <>
+                                                            <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mt-3 mb-1">
+                                                                Đã hoàn thành ({done.length})
+                                                            </p>
+                                                            {done.map(t => <ThreadCard key={t.user} thread={t} />)}
+                                                        </>
+                                                    )}
+
+                                                    {/* Không có luồng nào chạy */}
+                                                    {threadList.length > 0 && running.length === 0 && done.length === 0 && (
+                                                        <div className="flex flex-col items-center justify-center h-20 text-slate-600 gap-2">
+                                                            <CheckCircle2 size={20} className="text-emerald-700" />
+                                                            <p className="text-xs">Tất cả luồng đã hoàn thành</p>
+                                                        </div>
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
                                     </>
                                 )}
                             </div>
