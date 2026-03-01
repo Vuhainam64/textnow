@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:vps1": "vite --mode vps1",
+    "dev:vps2": "vite --mode vps2",
     "build": "vite build",
+    "build:vps1": "vite build --mode vps1",
+    "build:vps2": "vite build --mode vps2",
     "lint": "eslint .",
     "preview": "vite preview"
   },

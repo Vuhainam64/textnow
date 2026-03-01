@@ -54,6 +54,8 @@ const vi = {
         deleting: 'Đang xóa...',
         cancel: 'Huỷ',
         saving: 'Đang lưu...',
+        confirm: 'Xác nhận',
+        processing: 'Đang xử lý...',
     },
 
     // ── Navigation ───────────────────────────────────────────────────

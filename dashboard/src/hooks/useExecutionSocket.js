@@ -1,16 +1,28 @@
 import { useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
+import { getActiveBaseUrl } from '../lib/serverStore';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000';
+// Lấy socket URL từ active server (cùng nguồn với API)
+// Bỏ /api ở cuối để lấy base socket URL: http://vps01.autopee.com:3000
+function getSocketUrl() {
+    const base = getActiveBaseUrl(); // e.g. "http://vps01.autopee.com:3000/api"
+    return base.replace(/\/api\/?$/, ''); // → "http://vps01.autopee.com:3000"
+}
 
 let _socket = null;
+let _socketUrl = null;
 
 function getSocket() {
+    const currentUrl = getSocketUrl();
+    // Nếu server switch → destroy socket cũ, tạo mới
+    if (_socket && _socketUrl !== currentUrl) {
+        _socket.disconnect();
+        _socket = null;
+    }
     if (!_socket || _socket.disconnected) {
-        // Cho phep ca 2 transport: polling (fallback) + websocket (upgrade)
-        // Tranh truong hop WebSocket bi chan (firewall, proxy CORS upgrade fail)
-        _socket = io(SOCKET_URL, {
-            transports: ['polling', 'websocket'],  // polling truoc de dam bao ket noi, sau do upgrade len WS
+        _socketUrl = currentUrl;
+        _socket = io(currentUrl, {
+            transports: ['polling', 'websocket'],  // polling trước để tránh CORS upgrade fail
             reconnection: true,
             reconnectionAttempts: Infinity,
             reconnectionDelay: 1000,
@@ -19,7 +31,7 @@ function getSocket() {
         });
 
         _socket.on('connect', () => {
-            console.log('[Socket] ✅ Connected:', _socket.id);
+            console.log('[Socket] ✅ Connected:', _socket.id, '→', currentUrl);
         });
         _socket.on('disconnect', (reason) => {
             console.warn('[Socket] ❌ Disconnected:', reason);

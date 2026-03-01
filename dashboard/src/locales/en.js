@@ -54,6 +54,8 @@ const en = {
         deleting: 'Deleting...',
         cancel: 'Cancel',
         saving: 'Saving...',
+        confirm: 'Confirm',
+        processing: 'Processing...',
     },
 
     // ── Navigation ───────────────────────────────────────────────────

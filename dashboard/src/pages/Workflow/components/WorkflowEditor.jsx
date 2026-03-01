@@ -12,7 +12,7 @@ import {
     ReactFlowProvider,
     useReactFlow,
 } from '@xyflow/react';
-import { io } from 'socket.io-client';
+import { getActiveBaseUrl } from '../../../lib/serverStore';
 import '@xyflow/react/dist/style.css';
 import * as Icons from 'lucide-react';
 import {
@@ -273,7 +273,7 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                 setShowLogs(true);
                 addLog(`🔄 Đã tìm thấy quy trình đang chạy: ${execId}`, 'info');
 
-                const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000';
+                const SOCKET_URL = getActiveBaseUrl().replace(/\/api\/?$/, '');
                 const { io } = await import('socket.io-client');
                 if (cancelled) return;
 
@@ -402,7 +402,8 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
             setCurrentExecutionId(executionId);
             addLog(`✅ Server tiep nhan. ID: ${executionId}`, 'success');
 
-            const socket = io('http://localhost:3000');
+            const SOCKET_URL = getActiveBaseUrl().replace(/\/api\/?$/, '');
+            const socket = io(SOCKET_URL);
             socket.on('connect', () => socket.emit('join-execution', executionId));
             socket.on('workflow-log', (newLog) => {
                 setLogs(prev => [...prev, {
@@ -485,7 +486,7 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
             if (runConfig.test_mode) addLog(`ℹ️ Chế độ Chạy thử: Chỉ xử lý 1 tài khoản đầu tiên.`, 'info');
 
             // Setup WebSocket connection
-            const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000';
+            const SOCKET_URL = getActiveBaseUrl().replace(/\/api\/?$/, '');
             const socket = io(SOCKET_URL, {
                 transports: ['polling', 'websocket'],
                 reconnection: true,
