@@ -131,18 +131,74 @@ router.post('/execution/:id/stop', (req, res) => {
     });
 });
 
-// Get execution status/logs
+// Get execution status/logs — phan trang de tranh response khong lo
 router.get('/execution/:id/logs', (req, res) => {
     const execution = WorkflowEngine.activeExecutions.get(req.params.id);
     if (!execution) return res.status(404).json({ success: false, error: 'Execution not found' });
 
+    // Phan trang: ?page=1&limit=200&threadId=xxx
+    const limit = Math.min(parseInt(req.query.limit) || 200, 500);
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const threadFilter = req.query.threadId || null;
+
+    let allLogs = execution.logs;
+    if (threadFilter) {
+        allLogs = allLogs.filter(l => l.threadId === threadFilter);
+    }
+
+    const total = allLogs.length;
+    const offset = (page - 1) * limit;
+    const logs = allLogs.slice(offset, offset + limit);
+
+    // Thread metadata chỉ (không có logs[])
+    const threads = {};
+    for (const [tid, t] of Object.entries(execution.threads || {})) {
+        threads[tid] = {
+            user: t.user,
+            index: t.index,
+            total: t.total,
+            status: t.status,
+            started_at: t.started_at,
+            ended_at: t.ended_at,
+            error: t.error,
+        };
+    }
+
     res.json({
         success: true,
         status: execution.status,
-        logs: execution.logs,
-        threads: execution.threads || {},
+        logs,
+        total,
+        page,
+        limit,
+        hasMore: offset + limit < total,
+        threads,
         started_at: execution.started_at,
         ended_at: execution.ended_at,
+    });
+});
+
+// Get logs of a specific thread (lazy load khi user click ThreadCard)
+router.get('/execution/:id/thread-logs/:threadId', (req, res) => {
+    const execution = WorkflowEngine.activeExecutions.get(req.params.id);
+    if (!execution) return res.status(404).json({ success: false, error: 'Execution not found' });
+
+    const threadId = req.params.threadId;
+    const limit = Math.min(parseInt(req.query.limit) || 200, 500);
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+
+    // Loc trong global logs array theo threadId
+    const threadLogs = execution.logs.filter(l => l.threadId === threadId);
+    const total = threadLogs.length;
+    const offset = (page - 1) * limit;
+
+    res.json({
+        success: true,
+        threadId,
+        logs: threadLogs.slice(offset, offset + limit),
+        total,
+        page,
+        hasMore: offset + limit < total,
     });
 });
 

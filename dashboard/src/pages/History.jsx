@@ -78,17 +78,36 @@ function LogLine({ log }) {
 }
 
 
-// ─── Thread Card ──────────────────────────────────────────────────────────────
-function ThreadCard({ thread }) {
+// ThreadCard — lazy load logs khi user click mo
+function ThreadCard({ thread, executionId }) {
     const [open, setOpen] = useState(false);
+    const [threadLogs, setThreadLogs] = useState(null); // null = chua load
+    const [loadingLogs, setLoadingLogs] = useState(false);
     const s = THREAD_STATUS[thread.status] || THREAD_STATUS.running;
+
+    const handleToggle = async () => {
+        const nextOpen = !open;
+        setOpen(nextOpen);
+        // Lazy load: chi goi API lan dau mo
+        if (nextOpen && threadLogs === null && executionId) {
+            setLoadingLogs(true);
+            try {
+                const res = await WorkflowsService.getThreadLogs(executionId, thread.user, { limit: 200 });
+                setThreadLogs(res.data?.logs || []);
+            } catch {
+                setThreadLogs([]);
+            } finally {
+                setLoadingLogs(false);
+            }
+        }
+    };
 
     return (
         <div className={`rounded-2xl border ${s.border} ${s.bg} overflow-hidden transition-all`}>
             {/* Card Header */}
             <div
                 className="flex items-center gap-3 px-4 py-3 cursor-pointer select-none"
-                onClick={() => setOpen(o => !o)}
+                onClick={handleToggle}
             >
                 <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-white/5`}>
                     <s.Icon size={15} className={`${s.color} ${s.spin ? 'animate-spin' : ''}`} />
@@ -108,19 +127,24 @@ function ThreadCard({ thread }) {
                 <ChevronDown size={14} className={`text-slate-600 transition-transform shrink-0 ${open ? 'rotate-180' : ''}`} />
             </div>
 
-            {/* Logs toggle */}
+            {/* Logs — lazy loaded */}
             {open && (
                 <div className="border-t border-white/5 bg-black/20 px-4 py-3 max-h-52 overflow-y-auto font-mono text-[11px] leading-relaxed space-y-0.5 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
-                    {thread.logs?.length === 0 ? (
+                    {loadingLogs ? (
+                        <div className="flex items-center gap-2 text-slate-600">
+                            <Loader2 size={12} className="animate-spin" /> Đang tải...
+                        </div>
+                    ) : !threadLogs || threadLogs.length === 0 ? (
                         <p className="text-slate-700 italic">Không có log.</p>
-                    ) : thread.logs?.map((log, i) => (
-                        <LogLine key={i} log={log} />
+                    ) : threadLogs.map((log, i) => (
+                        <LogLine key={log.id || i} log={log} />
                     ))}
                 </div>
             )}
         </div>
     );
 }
+
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function History() {
@@ -130,74 +154,62 @@ export default function History() {
     const [executions, setExecutions] = useState([]);
     const [loadingList, setLoadingList] = useState(true);
     const [selectedId, setSelectedId] = useState(searchParams.get('exec') || null);
-    const [viewMode, setViewMode] = useState('log'); // 'log' | 'thread'
-    const [logs, setLogs] = useState([]);
-    const [threads, setThreads] = useState({});    // { [user]: thread }
+    const [viewMode, setViewMode] = useState('log');
+    const [logs, setLogs] = useState([]);          // Ring-buffer: toi da LOG_WINDOW
+    const [totalLogs, setTotalLogs] = useState(0); // Tong so log tren server
+    const [threads, setThreads] = useState({});    // { [threadId]: metadata only }
     const [execStatus, setExecStatus] = useState(null);
     const [logsLoading, setLogsLoading] = useState(false);
     const [stopping, setStopping] = useState(false);
     const [stoppingAll, setStoppingAll] = useState(false);
-    const [filterAccount, setFilterAccount] = useState(null); // filter log by account
+    const [filterAccount, setFilterAccount] = useState(null);
+    const [threadSearch, setThreadSearch] = useState('');
+    const [threadPage, setThreadPage] = useState(1);
     const logEndRef = useRef(null);
     const listPollRef = useRef(null);
 
-    // ── Real-time socket handlers ────────────────────────────────────────────
+    const LOG_WINDOW = 200;   // So log toi da hien tren client
+    const THREAD_PAGE_SIZE = 50;
+
+    // ── Real-time socket handlers (batch) ───────────────────────────────────
     const handleSocketLog = useCallback((entry) => {
-        setLogs(prev => [...prev, entry]);
-
-        // Cap nhat log vao thread tuong ung
-        if (entry.threadId) {
-            setThreads(t => {
-                const existing = t[entry.threadId];
-                if (existing) {
-                    // Thread da co → append log
-                    return {
-                        ...t,
-                        [entry.threadId]: {
-                            ...existing,
-                            logs: [...(existing.logs || []), entry],
-                        }
-                    };
-                } else {
-                    // Thread CHUA co (log den som hon workflow-thread-update)
-                    // Tao placeholder de khong mat log
-                    return {
-                        ...t,
-                        [entry.threadId]: {
-                            user: entry.threadId,
-                            status: 'running',
-                            logs: [entry],
-                        }
-                    };
-                }
-            });
-        }
-
+        // Single entry (backward compat) - wrap trong batch
+        setLogs(prev => {
+            const next = [...prev, entry];
+            return next.length > LOG_WINDOW ? next.slice(-LOG_WINDOW) : next;
+        });
         requestAnimationFrame(() => logEndRef.current?.scrollIntoView({ behavior: 'smooth' }));
     }, []);
 
-    const handleThreadUpdate = useCallback(({ threadId, thread }) => {
-        // Merge only metadata; logs come from handleSocketLog to avoid duplicates
-        setThreads(prev => {
-            const existing = prev[threadId] || {};
-            return {
-                ...prev,
-                [threadId]: {
-                    ...thread,
-                    logs: existing.logs || thread.logs || [],   // keep client-accumulated logs
-                }
-            };
+    const handleLogBatch = useCallback((entries) => {
+        if (!Array.isArray(entries) || entries.length === 0) return;
+        setLogs(prev => {
+            const next = [...prev, ...entries];
+            return next.length > LOG_WINDOW ? next.slice(-LOG_WINDOW) : next;
         });
+        setTotalLogs(t => t + entries.length);
+        requestAnimationFrame(() => logEndRef.current?.scrollIntoView({ behavior: 'smooth' }));
+    }, []);
+
+    const handleThreadMeta = useCallback(({ threadId, meta }) => {
+        // Nhan metadata only — khong co logs[]
+        setThreads(prev => ({ ...prev, [threadId]: { ...prev[threadId], ...meta } }));
+    }, []);
+
+    // Backward compat shim (neu server cu gui thread-update)
+    const handleThreadUpdate = useCallback(({ threadId, thread }) => {
+        setThreads(prev => ({ ...prev, [threadId]: { ...(prev[threadId] || {}), ...thread } }));
     }, []);
 
     const handleStatusChange = useCallback(({ status }) => {
         setExecStatus(status);
-        // Refresh list to update sidebar status
         loadExecutionsSilent();
     }, []); // eslint-disable-line
 
     useExecutionSocket(selectedId, {
         onLog: handleSocketLog,
+        onLogBatch: handleLogBatch,
+        onThreadMeta: handleThreadMeta,
         onThreadUpdate: handleThreadUpdate,
         onStatusChange: handleStatusChange,
     });
@@ -215,18 +227,22 @@ export default function History() {
 
     function loadExecutionsSilent() { loadExecutions(true); }
 
-    // ── Load initial logs for selected exec ──────────────────────────────────
+    // ── Load initial logs for selected exec (first page only) ───────────────
     const loadDetail = useCallback(async (id) => {
         if (!id) return;
         setLogsLoading(true);
         try {
-            const res = await WorkflowsService.getLogs(id);
-            setLogs(res.data?.logs || []);
-            setThreads(res.data?.threads || {});
-            setExecStatus(res.data?.status || null);
+            const res = await WorkflowsService.getLogs(id, { limit: LOG_WINDOW, page: 1 });
+            const data = res.data || {};
+            setLogs(data.logs || []);
+            setTotalLogs(data.total || 0);
+            // Threads: metadata only (server da strip logs[])
+            setThreads(data.threads || {});
+            setExecStatus(data.status || null);
             requestAnimationFrame(() => logEndRef.current?.scrollIntoView());
         } catch {
             setLogs([]);
+            setTotalLogs(0);
             setThreads({});
         } finally { setLogsLoading(false); }
     }, []);
@@ -242,8 +258,11 @@ export default function History() {
     useEffect(() => {
         if (selectedId) {
             setLogs([]);
+            setTotalLogs(0);
             setThreads({});
             setFilterAccount(null);
+            setThreadSearch('');
+            setThreadPage(1);
             loadDetail(selectedId);
         }
     }, [selectedId, loadDetail]);
@@ -289,10 +308,25 @@ export default function History() {
     const statusCfg = STATUS[liveStatus] || STATUS.failed;
     const threadList = Object.values(threads);
 
+    // Thread pagination + search
+    const filteredThreads = threadSearch
+        ? threadList.filter(t => t.user?.toLowerCase().includes(threadSearch.toLowerCase()))
+        : threadList;
+    const threadRunning = filteredThreads.filter(t => t.status === 'running').sort((a, b) => a.index - b.index);
+    const threadDone = filteredThreads.filter(t => t.status !== 'running').sort((a, b) => a.index - b.index);
+    const threadDonePage = threadDone.slice(0, threadPage * THREAD_PAGE_SIZE);
+    const hasMoreThreads = threadDone.length > threadPage * THREAD_PAGE_SIZE;
+
     // Stats
     const successCount = threadList.filter(t => t.status === 'success').length;
     const errorCount = threadList.filter(t => t.status === 'error').length;
     const runningCount = threadList.filter(t => t.status === 'running').length;
+
+    // Log window info
+    const hiddenLogs = Math.max(0, totalLogs - LOG_WINDOW);
+    const filteredLogs = filterAccount
+        ? logs.filter(l => l.threadId?.startsWith(filterAccount))
+        : logs;
 
     return (
         <div className="flex h-full overflow-hidden animate-in fade-in duration-300">
@@ -514,6 +548,13 @@ export default function History() {
                                 })()}
                                 {/* Log list */}
                                 <div className="flex-1 overflow-y-auto px-4 py-3 font-mono text-[12px] leading-relaxed bg-[#090c12] scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+                                    {/* Hidden logs notice */}
+                                    {hiddenLogs > 0 && (
+                                        <div className="mb-2 px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/15 text-[10px] text-amber-500/70 flex items-center gap-2">
+                                            <AlertTriangle size={11} />
+                                            {hiddenLogs.toLocaleString()} log cũ đã bị ẩn (hiện thị {LOG_WINDOW} log gần nhất)
+                                        </div>
+                                    )}
                                     {logsLoading && logs.length === 0 ? (
                                         <div className="flex items-center gap-2 text-slate-600 p-4">
                                             <Loader2 size={14} className="animate-spin" /> Đang tải logs...
@@ -522,8 +563,7 @@ export default function History() {
                                         <p className="text-slate-700 italic p-4">Chưa có log nào.</p>
                                     ) : (
                                         <div className="space-y-0.5">
-                                            {logs
-                                                .filter(l => !filterAccount || l.threadId?.startsWith(filterAccount))
+                                            {filteredLogs
                                                 .map((log, i) => <LogLine key={log.id || i} log={log} />)
                                             }
                                         </div>
@@ -588,16 +628,15 @@ export default function History() {
                                     </div>
                                 ) : (
                                     <>
-                                        {/* Stats merged */}
+                                        {/* Stats */}
                                         {(() => {
-                                            // Parse account status tu logs cua moi thread da xong
                                             const statusMap = {};
                                             threadList.forEach(t => {
                                                 if (t.status === 'running') return;
-                                                const logs = t.logs || [];
+                                                const lgs = logs.filter(l => l.threadId === t.user);
                                                 let lastStatus = null;
-                                                for (let i = logs.length - 1; i >= 0; i--) {
-                                                    const m = logs[i].message?.match(/cap nhat trang thai tai khoan thanh:\s*(\S+)/i);
+                                                for (let i = lgs.length - 1; i >= 0; i--) {
+                                                    const m = lgs[i].message?.match(/cap nhat trang thai tai khoan thanh:\s*(\S+)/i);
                                                     if (m) { lastStatus = m[1]; break; }
                                                 }
                                                 if (lastStatus) statusMap[lastStatus] = (statusMap[lastStatus] || 0) + 1;
@@ -616,7 +655,6 @@ export default function History() {
 
                                             return (
                                                 <div className="mb-4 space-y-3">
-                                                    {/* Thread status row - compact pills */}
                                                     <div className="flex items-center gap-2 flex-wrap">
                                                         {runningCount > 0 && (
                                                             <span className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold">
@@ -634,8 +672,6 @@ export default function History() {
                                                             </span>
                                                         )}
                                                     </div>
-
-                                                    {/* Account status results - grid cards */}
                                                     {statusEntries.length > 0 && (
                                                         <div className={`grid gap-3 ${statusEntries.length <= 2 ? 'grid-cols-2' : statusEntries.length <= 3 ? 'grid-cols-3' : 'grid-cols-4'}`}>
                                                             {statusEntries.map(([st, cnt]) => {
@@ -655,40 +691,46 @@ export default function History() {
                                             );
                                         })()}
 
-                                        {/* Thread cards - running first, then completed */}
-                                        {(() => {
-                                            const running = threadList.filter(t => t.status === 'running').sort((a, b) => a.index - b.index);
-                                            const done = threadList.filter(t => t.status !== 'running').sort((a, b) => a.index - b.index);
-                                            return (
-                                                <>
-                                                    {/* Đang chạy */}
-                                                    {running.length > 0 && (
-                                                        <>
-                                                            <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-1">Đang chạy ({running.length})</p>
-                                                            {running.map(t => <ThreadCard key={t.user} thread={t} />)}
-                                                        </>
-                                                    )}
+                                        {/* Thread search */}
+                                        {threadList.length > 10 && (
+                                            <input
+                                                type="text"
+                                                value={threadSearch}
+                                                onChange={e => { setThreadSearch(e.target.value); setThreadPage(1); }}
+                                                placeholder={`Tìm kiếm trong ${threadList.length} tài khoản...`}
+                                                className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 mb-1"
+                                            />
+                                        )}
 
-                                                    {/* Đã xong */}
-                                                    {done.length > 0 && (
-                                                        <>
-                                                            <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mt-3 mb-1">
-                                                                Đã hoàn thành ({done.length})
-                                                            </p>
-                                                            {done.map(t => <ThreadCard key={t.user} thread={t} />)}
-                                                        </>
-                                                    )}
+                                        {/* Running threads */}
+                                        {threadRunning.length > 0 && (
+                                            <>
+                                                <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-1">Đang chạy ({threadRunning.length})</p>
+                                                {threadRunning.map(t => <ThreadCard key={t.user} thread={t} executionId={selectedId} />)}
+                                            </>
+                                        )}
 
-                                                    {/* Không có luồng nào chạy */}
-                                                    {threadList.length > 0 && running.length === 0 && done.length === 0 && (
-                                                        <div className="flex flex-col items-center justify-center h-20 text-slate-600 gap-2">
-                                                            <CheckCircle2 size={20} className="text-emerald-700" />
-                                                            <p className="text-xs">Tất cả luồng đã hoàn thành</p>
-                                                        </div>
-                                                    )}
-                                                </>
-                                            );
-                                        })()}
+                                        {/* Done threads (paginated) */}
+                                        {threadDone.length > 0 && (
+                                            <>
+                                                <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mt-3 mb-1">
+                                                    Đã hoàn thành ({threadDone.length})
+                                                </p>
+                                                {threadDonePage.map(t => <ThreadCard key={t.user} thread={t} executionId={selectedId} />)}
+                                                {hasMoreThreads && (
+                                                    <button
+                                                        onClick={() => setThreadPage(p => p + 1)}
+                                                        className="w-full py-2 text-xs text-slate-500 hover:text-slate-300 border border-white/5 rounded-xl hover:bg-white/5 transition-all"
+                                                    >
+                                                        Tải thêm ({threadDone.length - threadPage * THREAD_PAGE_SIZE} còn lại)
+                                                    </button>
+                                                )}
+                                            </>
+                                        )}
+
+                                        {threadRunning.length === 0 && threadDone.length === 0 && threadSearch && (
+                                            <p className="text-center text-xs text-slate-600 py-8">Không tìm thấy tài khoản nào.</p>
+                                        )}
                                     </>
                                 )}
                             </div>

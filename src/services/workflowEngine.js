@@ -9,7 +9,16 @@ import { handleKiemTraEmail, handleDocEmail, handleXoaMail } from './nodeHandler
 class WorkflowEngine {
     constructor() {
         this.activeExecutions = new Map();
+        // Log batch queues: executionId → { logs: [], timer }
+        this._logQueues = new Map();
+        // Thread meta throttle: executionId+threadId → timer
+        this._threadMetaTimers = new Map();
     }
+
+    // ─── Gioi han log ──────────────────────────────────────────────────────────
+    static MAX_GLOBAL_LOGS = 5000;   // Toi da log toan cuc trong 1 execution
+    static LOG_BATCH_MS = 400;    // Flush log batch moi 400ms
+    static THREAD_THROTTLE_MS = 800; // Throttle thread-meta emit moi 800ms
 
     /**
      * Dừng một quy trình đang chạy
@@ -32,14 +41,17 @@ class WorkflowEngine {
         console.log(`[Engine] 🚀 Bắt đầu thực thi quy trình: ${workflow.name} (${executionId})`);
 
         this.activeExecutions.set(executionId, {
-            workflowName: workflow.name,   // Chi luu ten, khong luu toan bo workflow vao RAM
+            workflowName: workflow.name,
             workflowId: workflow._id,
             status: 'running',
             started_at: new Date(),
-            logs: [],
-            threads: {},
+            logs: [],           // Global log ring-buffer (MAX_GLOBAL_LOGS entries)
+            threads: {},        // Chỉ lưu metadata (KHÔNG có logs[])
             options
         });
+
+        // Khoi tao log queue cho execution nay
+        this._logQueues.set(executionId, { logs: [], timer: null });
 
         // Chạy bất đồng bộ
         this._run(executionId, workflow, options).catch(err => {
@@ -54,11 +66,11 @@ class WorkflowEngine {
         const exec = this.activeExecutions.get(executionId);
 
         try {
-            // 1. Tìm khối START (entry point của graph)
+            // 1. Tìm khối START
             const sourceNode = nodes.find(n => n.type === 'sourceNode');
             if (!sourceNode) throw new Error('Không tìm thấy khối START');
 
-            // 2. Lấy cấu hình runtime từ options
+            // 2. Lấy cấu hình runtime
             const {
                 account_group_id,
                 target_statuses = ['active'],
@@ -67,9 +79,9 @@ class WorkflowEngine {
                 limit = null,
                 threads = 1,
                 startup_delay = 0,
-                start_node_id = null,   // Resume: bat dau tu node cu the
-                ws_endpoint = null,     // Resume: dung lai browser session
-                profile_id = null,      // Resume: profile MLX can xoa sau khi chay
+                start_node_id = null,
+                ws_endpoint = null,
+                profile_id = null,
             } = options;
 
             if (!account_group_id) throw new Error('Thiếu account_group_id — vui lòng chọn Nhóm tài khoản khi chạy');
@@ -95,25 +107,21 @@ class WorkflowEngine {
 
             this._log(executionId, `Tim thay ${accounts.length} tai khoan. Chay ${threads} luong song song, khoi dong cach nhau ${startup_delay}s...`, 'success');
 
-            // ── Parallel thread pool ────────────────────────────────────────────
-            // Ghi chú: mỗi account chạy độc lập trong 1 "luồng" (async task).
-            // Tối đa `threads` tài khoản chạy cùng lúc.
-            // Mỗi tài khoản bắt đầu sau `startup_delay` giây so với tài khoản trước.
-            let activeThreads = 0;
+            // ── Parallel thread pool ─────────────────────────────────────────────
+            const isMultiThread = threads > 1 || accounts.length > 1;
+            let activeThreadCount = 0;
             let aborted = false;
 
             const processAccount = async (account, i) => {
                 const threadId = account.textnow_user;
 
-
-
                 if (this.activeExecutions.get(executionId)?.status === 'stopping') {
                     throw new Error('USER_ABORTED');
                 }
 
-                activeThreads++;
+                activeThreadCount++;
 
-                // Init thread entry
+                // Init thread entry — CHỈ metadata, không có logs[]
                 exec.threads[threadId] = {
                     user: threadId,
                     index: i + 1,
@@ -121,13 +129,11 @@ class WorkflowEngine {
                     status: 'running',
                     started_at: new Date(),
                     ended_at: null,
-                    logs: [],
+                    error: null,
                 };
 
-                socketService.to(executionId).emit('workflow-thread-update', {
-                    threadId,
-                    thread: exec.threads[threadId]
-                });
+                // Emit thread-meta (metadata only, no logs)
+                this._emitThreadMeta(executionId, threadId);
 
                 this._log(executionId, `[${i + 1}/${accounts.length}] Bat dau xu ly: ${threadId}`, 'default', threadId);
 
@@ -140,7 +146,6 @@ class WorkflowEngine {
                     context: null,
                     page: null,
                     new_password,
-                    // Shortcut: context.log(msg, type) thay vi engine._log(executionId, msg, type, threadId)
                     log: (message, type = 'default') => this._log(executionId, message, type, threadId),
                 };
 
@@ -150,25 +155,25 @@ class WorkflowEngine {
                         const proxy = await Proxy.findOneAndDelete({ group_id: proxy_group_id });
                         if (proxy) {
                             context.proxy = proxy;
-                            this._log(executionId, `   + Da lay proxy: ${proxy.host}:${proxy.port}`, 'default', threadId);
+                            context.log(`   + Da lay proxy: ${proxy.host}:${proxy.port}`);
                         } else {
-                            this._log(executionId, `   Het proxy trong nhom. Tiep tuc khong dung proxy.`, 'warning', threadId);
+                            context.log(`   Het proxy trong nhom. Tiep tuc khong dung proxy.`, 'warning');
                         }
                     }
 
-                    // Chay graph (co the bat dau tu node bat ki)
+                    // Chay graph
                     let startId = sourceNode.id;
                     if (start_node_id) {
                         const targetNode = nodes.find(n => n.id === start_node_id);
                         if (targetNode) {
                             startId = start_node_id;
-                            this._log(executionId, `   + Resume tu khoi: ${targetNode.data?.label || start_node_id}`, 'default', threadId);
+                            context.log(`   + Resume tu khoi: ${targetNode.data?.label || start_node_id}`);
                         } else {
-                            this._log(executionId, `   - Khong tim thay start_node_id: ${start_node_id}. Dung START.`, 'warning', threadId);
+                            context.log(`   - Khong tim thay start_node_id: ${start_node_id}. Dung START.`, 'warning');
                         }
                     }
 
-                    // Neu co ws_endpoint -> ket noi lai browser session (bo qua tao/mo profile)
+                    // Neu co ws_endpoint → ket noi lai browser session
                     if (ws_endpoint) {
                         try {
                             const { connectBrowser, getPage } = await import('./browserService.js');
@@ -178,21 +183,19 @@ class WorkflowEngine {
                             context.page = await getPage(bCtx);
                             context.wsEndpoint = ws_endpoint;
                             const portMatch = ws_endpoint.match(/(\d{4,5})/);
-                            this._log(executionId, `   + Ket noi browser tai: ${ws_endpoint.split('/')[2]} (port ${portMatch?.[1] || '?'})`, 'default', threadId);
+                            context.log(`   + Ket noi browser tai: ${ws_endpoint.split('/')[2]} (port ${portMatch?.[1] || '?'})`);
                         } catch (err) {
-                            this._log(executionId, `   - Khong ket noi duoc browser: ${err.message}`, 'error', threadId);
+                            context.log(`   - Khong ket noi duoc browser: ${err.message}`, 'error');
                         }
                     }
 
                     let currentNodeId = startId;
                     let currentResult = true;
 
-                    // Neu resume (start_node_id != sourceNode) → execute chinh node do truoc
-                    // Vi loop chi execute nextNode cua currentNodeId, nen node start phai chay rieng
                     if (start_node_id && startId !== sourceNode.id) {
                         const startNodeObj = nodes.find(n => n.id === startId);
                         if (startNodeObj) {
-                            currentResult = await this._executeNode(executionId, startNodeObj, context);
+                            currentResult = await this._executeNode(executionId, startNodeObj, context, isMultiThread);
                             if (currentResult === undefined || currentResult === null) currentResult = true;
                         }
                     }
@@ -216,48 +219,42 @@ class WorkflowEngine {
                         const nextNode = nodes.find(n => n.id === nextEdge.target);
                         if (!nextNode) break;
 
-                        currentResult = await this._executeNode(executionId, nextNode, context);
+                        currentResult = await this._executeNode(executionId, nextNode, context, isMultiThread);
                         if (currentResult === undefined || currentResult === null) currentResult = true;
                         currentNodeId = nextNode.id;
                     }
 
-                    this._log(executionId, `Hoan thanh: ${account.textnow_user}`, 'success', threadId);
+                    context.log(`Hoan thanh: ${account.textnow_user}`, 'success');
                     exec.threads[threadId].status = 'success';
                     exec.threads[threadId].ended_at = new Date();
-                    socketService.to(executionId).emit('workflow-thread-update', {
-                        threadId,
-                        thread: exec.threads[threadId]
-                    });
+                    this._emitThreadMeta(executionId, threadId, true); // force emit on status change
+
                 } catch (nodeErr) {
                     if (nodeErr.message === 'USER_ABORTED') {
                         aborted = true;
                         exec.threads[threadId].status = 'error';
                         exec.threads[threadId].ended_at = new Date();
                         exec.threads[threadId].error = 'Bi dung';
-                        socketService.to(executionId).emit('workflow-thread-update', { threadId, thread: exec.threads[threadId] });
+                        this._emitThreadMeta(executionId, threadId, true);
                         throw nodeErr;
                     }
-                    this._log(executionId, `Loi: ${nodeErr.message}`, 'error', threadId);
+                    context.log(`Loi: ${nodeErr.message}`, 'error');
                     exec.threads[threadId].status = 'error';
                     exec.threads[threadId].ended_at = new Date();
                     exec.threads[threadId].error = nodeErr.message;
-                    socketService.to(executionId).emit('workflow-thread-update', {
-                        threadId,
-                        thread: exec.threads[threadId]
-                    });
+                    this._emitThreadMeta(executionId, threadId, true);
                 } finally {
-                    activeThreads--;
+                    activeThreadCount--;
                 }
             };
 
-            // Pool N slot co dinh, moi slot delay 1 lan khi khoi dong, sau do chay doc lap
+            // Pool N slot cố định
             let accountIndex = 0;
 
             const runSlot = async (slotIndex) => {
-                // Delay slot: slot 0 = ngay, slot 1 = sau startup_delay, slot 2 = sau 2*startup_delay...
                 if (startup_delay > 0 && slotIndex > 0) {
                     const delay = slotIndex * startup_delay * 1000;
-                    this._log(executionId, `[Slot ${slotIndex + 1}] Khoi dong sau ${slotIndex * startup_delay}s...`, 'default');
+                    this._log(executionId, `[Slot ${slotIndex + 1}] Khoi dong sau ${slotIndex * startup_delay}s...`);
                     await new Promise((resolve, reject) => {
                         const check = setInterval(() => {
                             if (this.activeExecutions.get(executionId)?.status === 'stopping') {
@@ -267,7 +264,6 @@ class WorkflowEngine {
                         setTimeout(() => { clearInterval(check); resolve(); }, delay);
                     }).catch(() => { aborted = true; });
                 }
-                // Sau delay, chay lien tuc cac account, khong phu thuoc slot khac
                 while (!aborted && this.activeExecutions.get(executionId)?.status !== 'stopping') {
                     const i = accountIndex++;
                     if (i >= accounts.length) break;
@@ -279,12 +275,16 @@ class WorkflowEngine {
                 Array.from({ length: Math.min(threads, accounts.length) }, (_, slotIndex) => runSlot(slotIndex))
             );
 
+            // Flush pending logs truoc khi done
+            this._flushLogs(executionId);
+
             this._log(executionId, `✨ TẤT CẢ HOÀN TẤT ✨`, 'success');
             exec.status = 'completed';
             exec.ended_at = new Date();
             socketService.to(executionId).emit('workflow-status', { status: 'completed' });
 
         } catch (err) {
+            this._flushLogs(executionId);
             if (err.message === 'USER_ABORTED') {
                 this._log(executionId, `🛑 Đã dừng quy trình thành công.`, 'warning');
                 exec.status = 'stopped';
@@ -296,18 +296,62 @@ class WorkflowEngine {
                 exec.ended_at = new Date();
                 socketService.to(executionId).emit('workflow-status', { status: 'failed' });
             }
+        } finally {
+            // Cleanup queue
+            const q = this._logQueues.get(executionId);
+            if (q?.timer) clearTimeout(q.timer);
+            this._logQueues.delete(executionId);
         }
 
-        // Tu dong xoa execution cu: giu toi da 30, qua 30 phut thi xoa
         this._cleanupOldExecutions(executionId);
+    }
+
+    // ─── Emit thread metadata only (no logs) ──────────────────────────────────
+    _emitThreadMeta(executionId, threadId, force = false) {
+        const exec = this.activeExecutions.get(executionId);
+        if (!exec) return;
+        const meta = exec.threads[threadId];
+        if (!meta) return;
+
+        const key = `${executionId}:${threadId}`;
+
+        // Force emit ngay (status change)
+        if (force) {
+            const prev = this._threadMetaTimers.get(key);
+            if (prev) { clearTimeout(prev); this._threadMetaTimers.delete(key); }
+            socketService.to(executionId).emit('workflow-thread-meta', { threadId, meta });
+            return;
+        }
+
+        // Throttled emit
+        if (!this._threadMetaTimers.has(key)) {
+            this._threadMetaTimers.set(key, setTimeout(() => {
+                this._threadMetaTimers.delete(key);
+                const currentExec = this.activeExecutions.get(executionId);
+                if (currentExec?.threads[threadId]) {
+                    socketService.to(executionId).emit('workflow-thread-meta', {
+                        threadId,
+                        meta: currentExec.threads[threadId]
+                    });
+                }
+            }, WorkflowEngine.THREAD_THROTTLE_MS));
+        }
+    }
+
+    // ─── Batch log flush ──────────────────────────────────────────────────────
+    _flushLogs(executionId) {
+        const q = this._logQueues.get(executionId);
+        if (!q || q.logs.length === 0) return;
+        const batch = q.logs.splice(0);
+        if (q.timer) { clearTimeout(q.timer); q.timer = null; }
+        socketService.to(executionId).emit('workflow-log-batch', batch);
     }
 
     _cleanupOldExecutions(currentId) {
         const MAX_KEEP = 30;
-        const MAX_AGE_MS = 30 * 60 * 1000;  // 30 phut
+        const MAX_AGE_MS = 30 * 60 * 1000;
         const now = Date.now();
 
-        // Xoa cac execution qua cu (> 30 phut) va da xong
         for (const [id, ex] of this.activeExecutions.entries()) {
             if (id === currentId || ex.status === 'running' || ex.status === 'stopping') continue;
             const age = now - new Date(ex.ended_at || ex.started_at).getTime();
@@ -317,7 +361,6 @@ class WorkflowEngine {
             }
         }
 
-        // Neu van con qua nhieu, xoa cai cu nhat
         const done = [...this.activeExecutions.entries()]
             .filter(([id, ex]) => id !== currentId && ex.status !== 'running' && ex.status !== 'stopping')
             .sort((a, b) => new Date(a[1].ended_at || 0) - new Date(b[1].ended_at || 0));
@@ -332,18 +375,19 @@ class WorkflowEngine {
     /**
      * Thực thi logic cụ thể cho từng loại khối
      */
-    async _executeNode(executionId, node, context) {
+    async _executeNode(executionId, node, context, isMultiThread = false) {
         const { label, config } = node.data;
         const tid = context.threadId || null;
         this._log(executionId, `⚙️ Đang thực hiện: ${label}...`, 'default', tid);
 
-        // Emit node-active để frontend highlight khối đang chạy
-        socketService.to(executionId).emit('workflow-node-active', { nodeId: node.id });
+        // Chỉ emit node-active khi single thread (không spam khi multi-thread)
+        if (!isMultiThread) {
+            socketService.to(executionId).emit('workflow-node-active', { nodeId: node.id });
+        }
 
         try {
             const timeoutSec = parseInt(config?.timeout) || 60;
 
-            // Race giữa logic node và timeout
             const result = await Promise.race([
                 this._runNodeLogic(executionId, node, context),
                 new Promise((_, reject) =>
@@ -351,7 +395,6 @@ class WorkflowEngine {
                 )
             ]);
 
-            // Xử lý Delay ngẫu nhiên sau khi thực hiện xong khối
             const delayMin = parseInt(config?.delay_min) || 0;
             const delayMax = parseInt(config?.delay_max) || 0;
 
@@ -372,8 +415,7 @@ class WorkflowEngine {
     }
 
     /**
-     * _runNodeLogic: Dispatcher - chuyển sang handler tương ứng theo label
-     * Labels phải khớp CHÍNH XÁC với constants.js trong dashboard
+     * _runNodeLogic: Dispatcher
      */
     async _runNodeLogic(executionId, node, context) {
         const { label, config } = node.data;
@@ -406,45 +448,39 @@ class WorkflowEngine {
         }
     }
 
-    // Gioi han log de tranh OOM
-    static MAX_GLOBAL_LOGS = 5000;   // Toi da log trong 1 execution
-    static MAX_THREAD_LOGS = 200;    // Toi da log moi thread
-
+    /**
+     * _log — thêm vào ring-buffer + batch queue
+     */
     _log(executionId, message, type = 'default', threadId = null) {
         const exec = this.activeExecutions.get(executionId);
         if (!exec) return;
-
-        const effectiveThreadId = threadId || null;
 
         const logEntry = {
             id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             timestamp: new Date().toISOString(),
             message,
             type,
-            threadId: effectiveThreadId,
+            threadId: threadId || null,
         };
 
-        // Cap global logs
+        // Ring-buffer global logs
         exec.logs.push(logEntry);
         if (exec.logs.length > WorkflowEngine.MAX_GLOBAL_LOGS) {
             exec.logs.splice(0, exec.logs.length - WorkflowEngine.MAX_GLOBAL_LOGS);
         }
 
-        if (effectiveThreadId && exec.threads[effectiveThreadId]) {
-            const thr = exec.threads[effectiveThreadId];
-            thr.logs.push(logEntry);
-            // Cap thread logs
-            if (thr.logs.length > WorkflowEngine.MAX_THREAD_LOGS) {
-                thr.logs.splice(0, thr.logs.length - WorkflowEngine.MAX_THREAD_LOGS);
+        // Batch queue → flush moi LOG_BATCH_MS
+        const q = this._logQueues.get(executionId);
+        if (q) {
+            q.logs.push(logEntry);
+            if (!q.timer) {
+                q.timer = setTimeout(() => {
+                    this._flushLogs(executionId);
+                }, WorkflowEngine.LOG_BATCH_MS);
             }
-            socketService.to(executionId).emit('workflow-thread-update', {
-                threadId: effectiveThreadId,
-                thread: exec.threads[effectiveThreadId]
-            });
         }
 
-        socketService.to(executionId).emit('workflow-log', logEntry);
-        console.log(`[Engine][${executionId}] ${message}`);
+        console.log(`[Engine][${executionId?.slice(-8)}][${threadId || 'sys'}] ${message}`);
     }
 
     _resolveValue(value, context) {
@@ -452,7 +488,7 @@ class WorkflowEngine {
         const randomStr = len => Array.from({ length: len }, () =>
             'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[Math.floor(Math.random() * 62)]
         ).join('');
-        return value.replace(/{{(\w+)}}/g, (_, key) => {
+        return value.replace(/{{\s*(\w+)\s*}}/g, (_, key) => {
             if (key === 'email') return context.account?.textnow_user || '';
             if (key === 'pass') return context.account?.textnow_pass || '';
             if (key === 'hotmail') return context.account?.hotmail_user || '';

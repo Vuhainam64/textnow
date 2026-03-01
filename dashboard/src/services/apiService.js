@@ -66,7 +66,8 @@ export const WorkflowsService = {
     delete: (id) => api.delete(`/workflows/${id}`),
     run: (id, runConfig = {}) => api.post(`/workflows/${id}/run`, runConfig),
     stop: (execId) => api.post(`/workflows/execution/${execId}/stop`),
-    getLogs: (execId) => api.get(`/workflows/execution/${execId}/logs`),
+    getLogs: (execId, params = {}) => api.get(`/workflows/execution/${execId}/logs`, { params }),
+    getThreadLogs: (execId, threadId, params = {}) => api.get(`/workflows/execution/${execId}/thread-logs/${encodeURIComponent(threadId)}`, { params }),
     getAllExecutions: () => api.get('/workflows/executions/all'),
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 
 const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000';
@@ -14,12 +14,22 @@ function getSocket() {
 
 /**
  * useExecutionSocket
- * Joins an execution room and subscribes to real-time events.
+ * Subscribes to real-time execution events.
  *
- * @param {string|null} executionId
- * @param {{ onLog, onThreadUpdate, onStatusChange }} handlers
+ * Events nhận:
+ *   workflow-log-batch   → onLogBatch([...entries])   (batched, mỗi 400ms)
+ *   workflow-thread-meta → onThreadMeta({threadId, meta})  (metadata only, no logs[])
+ *   workflow-status      → onStatusChange({status})
+ *   workflow-node-active → onNodeActive({nodeId})  (chỉ khi single-thread)
  */
-export function useExecutionSocket(executionId, { onLog, onThreadUpdate, onStatusChange, onNodeActive } = {}) {
+export function useExecutionSocket(executionId, {
+    onLogBatch,
+    onLog,          // backward compat — gọi onLog cho từng entry trong batch
+    onThreadUpdate, // backward compat
+    onThreadMeta,
+    onStatusChange,
+    onNodeActive,
+} = {}) {
     const socket = useRef(getSocket());
 
     useEffect(() => {
@@ -28,21 +38,37 @@ export function useExecutionSocket(executionId, { onLog, onThreadUpdate, onStatu
 
         s.emit('join-execution', executionId);
 
-        const handleLog = (data) => onLog?.(data);
-        const handleThread = (data) => onThreadUpdate?.(data);
+        // Nhận batch logs (mới) — mỗi event là mảng log entries
+        const handleLogBatch = (entries) => {
+            if (Array.isArray(entries)) {
+                onLogBatch?.(entries);
+                // Backward compat: gọi onLog cho mỗi entry
+                if (onLog) entries.forEach(e => onLog(e));
+            }
+        };
+
+        // Nhận thread metadata (mới — không có logs[])
+        const handleThreadMeta = (data) => {
+            onThreadMeta?.(data);
+            // Backward compat: gọi onThreadUpdate nếu có
+            if (onThreadUpdate && data?.meta) {
+                onThreadUpdate({ threadId: data.threadId, thread: data.meta });
+            }
+        };
+
         const handleStatus = (data) => onStatusChange?.(data);
         const handleActive = (data) => onNodeActive?.(data);
 
-        s.on('workflow-log', handleLog);
-        s.on('workflow-thread-update', handleThread);
+        s.on('workflow-log-batch', handleLogBatch);
+        s.on('workflow-thread-meta', handleThreadMeta);
         s.on('workflow-status', handleStatus);
         s.on('workflow-node-active', handleActive);
 
         return () => {
-            s.off('workflow-log', handleLog);
-            s.off('workflow-thread-update', handleThread);
+            s.off('workflow-log-batch', handleLogBatch);
+            s.off('workflow-thread-meta', handleThreadMeta);
             s.off('workflow-status', handleStatus);
             s.off('workflow-node-active', handleActive);
         };
-    }, [executionId, onLog, onThreadUpdate, onStatusChange, onNodeActive]);
+    }, [executionId]); // eslint-disable-line
 }
