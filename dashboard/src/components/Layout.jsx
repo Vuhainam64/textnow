@@ -161,8 +161,6 @@ function Header({ onShowSettings }) {
             </div>
 
             <div className="flex items-center gap-3">
-                {/* Language Switcher */}
-                <LanguageSwitcher />
                 {/* Server Switcher */}
                 <ServerSwitcher onChange={() => window.location.reload()} />
                 {/* MLX Agent Status */}
@@ -187,7 +185,8 @@ function Header({ onShowSettings }) {
                         </button>
                     )}
                 </div>
-
+                {/* Language Switcher */}
+                <LanguageSwitcher />
                 <div className="h-6 w-px bg-white/5 mx-1" />
 
                 <div className="flex items-center gap-2">

@@ -97,14 +97,14 @@ export default function Tasks() {
 
     // ── Workflow CRUD ──────────────────────────────────────────────────────────
     const handleCreate = async () => {
-        if (!newWfData.name.trim()) return showToast('Vui lòng nhập tên kịch bản', 'warning')
+        if (!newWfData.name.trim()) return showToast(t('tasks.enterName'), 'warning')
         try {
             const initialNodes = [{
                 id: 'source_start', type: 'sourceNode', position: { x: 250, y: 50 },
                 data: { label: 'START', category: 'Hệ thống', icon: 'Zap', color: 'bg-emerald-500/20 text-emerald-400', config: {} }
             }]
             const res = await WorkflowsService.create({ ...newWfData, nodes: initialNodes, edges: [] })
-            showToast('✅ Đã tạo kịch bản mới')
+            showToast(t('tasks.created'))
             setShowCreateModal(false)
             setNewWfData({ name: '', description: '' })
             await loadWorkflows()
@@ -117,7 +117,7 @@ export default function Tasks() {
     const handleDelete = async () => {
         try {
             await WorkflowsService.delete(confirmDelete)
-            showToast('Đã xoá kịch bản')
+            showToast(t('tasks.deleted'))
             setConfirmDelete(null)
             if (selectedWf?._id === confirmDelete) setSelectedWf(null)
             loadWorkflows()
@@ -126,9 +126,9 @@ export default function Tasks() {
 
     // ── Run ────────────────────────────────────────────────────────────────────
     const handleRun = async () => {
-        if (!selectedWf) return showToast('Vui lòng chọn kịch bản', 'warning')
-        if (!runConfig.account_group_id) return showToast('Vui lòng chọn Nhóm tài khoản', 'warning')
-        if (matchingCount === 0 && !runConfig.test_mode) return showToast('Không có tài khoản nào thoả mãn điều kiện', 'warning')
+        if (!selectedWf) return showToast(t('tasks.selectWorkflow'), 'warning')
+        if (!runConfig.account_group_id) return showToast(t('workflow.selectAccountGroup'), 'warning')
+        if (matchingCount === 0 && !runConfig.test_mode) return showToast(t('tasks.noMatchingAccounts'), 'warning')
 
         if (runConfig.new_password) localStorage.setItem('task_new_password', runConfig.new_password)
 
@@ -141,7 +141,7 @@ export default function Tasks() {
                 limit: runConfig.limit !== '' ? parseInt(runConfig.limit) : undefined,
             })
             const execId = res.data?.executionId || res.executionId
-            showToast(`✅ Đã khởi chạy!`, 'success')
+            showToast(t('tasks.launched'), 'success')
             // Chuyển sang trang lịch sử và highlight execution vừa chạy
             navigate(`/history?exec=${execId}`)
         } catch (err) {
@@ -235,7 +235,7 @@ export default function Tasks() {
                     <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/10">
                         <p className="text-[10px] text-amber-400/70 leading-relaxed flex items-start gap-1.5">
                             <Info size={11} className="mt-0.5 shrink-0" />
-                            Chọn kịch bản, cấu hình nguồn dữ liệu rồi nhấn <strong>Chạy ngay</strong>.
+                            {t('tasks.tip')}
                         </p>
                     </div>
                 </div>
@@ -249,8 +249,8 @@ export default function Tasks() {
                             <Zap size={28} />
                         </div>
                         <div className="text-center">
-                            <p className="text-sm font-semibold text-slate-500">Chọn kịch bản để bắt đầu</p>
-                            <p className="text-xs text-slate-600 mt-1">hoặc nhấn <span className="text-blue-400">+</span> để tạo kịch bản mới</p>
+                            <p className="text-sm font-semibold text-slate-500">{t('tasks.selectToStart')}</p>
+                            <p className="text-xs text-slate-600 mt-1">{t('tasks.orCreate')} <span className="text-blue-400">+</span> {t('tasks.toCreateNew')}</p>
                         </div>
                     </div>
                 ) : (
@@ -301,9 +301,9 @@ export default function Tasks() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="text-xs text-slate-500 mb-2 block font-medium">{t('workflow.proxyGroup')} <span className="text-slate-600">({t('common.save').slice(0, 3) === 'Lưu' ? 'tuỳ chọn' : 'optional'})</span></label>
+                                        <label className="text-xs text-slate-500 mb-2 block font-medium">{t('workflow.proxyGroup')} <span className="text-slate-600">({t('common.optional')})</span></label>
                                         <Select
-                                            options={[{ value: '', label: '— Không dùng proxy —' }, ...proxyGroups.map(g => ({ value: g._id, label: g.name }))]}
+                                            options={[{ value: '', label: t('tasks.noProxy') }, ...proxyGroups.map(g => ({ value: g._id, label: g.name }))]}
                                             value={runConfig.proxy_group_id}
                                             onChange={e => setRunConfig(c => ({ ...c, proxy_group_id: e.target.value }))}
                                         />
@@ -422,33 +422,33 @@ export default function Tasks() {
 
             {/* ── Modals ── */}
             {showCreateModal && (
-                <Modal title="Tạo kịch bản mới" onClose={() => setShowCreateModal(false)}>
+                <Modal title={t('tasks.createModal.title')} onClose={() => setShowCreateModal(false)}>
                     <div className="space-y-4">
                         <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">Tên kịch bản *</label>
+                            <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">{t('tasks.createModal.name')} *</label>
                             <input
                                 autoFocus
                                 className={inputCls}
-                                placeholder="Ví dụ: Reset Password TextNow"
+                                placeholder={t('tasks.createModal.namePlaceholder')}
                                 value={newWfData.name}
                                 onChange={e => setNewWfData({ ...newWfData, name: e.target.value })}
                                 onKeyDown={e => e.key === 'Enter' && handleCreate()}
                             />
                         </div>
                         <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">Mô tả</label>
+                            <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">{t('tasks.createModal.description')}</label>
                             <textarea
                                 rows={2}
                                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 resize-none"
-                                placeholder="Mô tả ngắn về kịch bản..."
+                                placeholder={t('tasks.createModal.descriptionPlaceholder')}
                                 value={newWfData.description}
                                 onChange={e => setNewWfData({ ...newWfData, description: e.target.value })}
                             />
                         </div>
                         <div className="flex gap-3 pt-2">
-                            <button onClick={() => setShowCreateModal(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:bg-white/5 transition-all">Huỷ</button>
+                            <button onClick={() => setShowCreateModal(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:bg-white/5 transition-all">{t('common.cancel')}</button>
                             <button onClick={handleCreate} className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-500 transition-all flex items-center justify-center gap-2">
-                                <Plus size={15} /> Tạo & Mở Editor
+                                <Plus size={15} /> {t('tasks.createModal.createButton')}
                             </button>
                         </div>
                     </div>
@@ -457,8 +457,8 @@ export default function Tasks() {
 
             {confirmDelete && (
                 <ConfirmModal
-                    title="Xoá kịch bản"
-                    message="Bạn có chắc chắn muốn xoá kịch bản này? Hành động không thể hoàn tác."
+                    title={t('tasks.deleteModal.title')}
+                    message={t('tasks.deleteModal.message')}
                     onConfirm={handleDelete}
                     onClose={() => setConfirmDelete(null)}
                 />

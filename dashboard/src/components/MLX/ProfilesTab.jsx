@@ -8,11 +8,13 @@ import Select from '../Select'
 import Modal from '../Modal'
 import ConfirmModal from './ConfirmModal'
 import { inputCls } from '../../lib/ui'
+import { useT } from '../../lib/i18n'
 
 const OS_COLORS = { windows: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20', macos: 'text-purple-400 bg-purple-500/10 border-purple-500/20', linux: 'text-amber-400 bg-amber-500/10 border-amber-500/20' }
 const BR_COLORS = { mimic: 'text-orange-400 bg-orange-500/10 border-orange-500/20', stealthfox: 'text-violet-400 bg-violet-500/10 border-violet-500/20' }
 
 export default function ProfilesTab() {
+    const t = useT()
     const [profiles, setProfiles] = useState([])
     const [loading, setLoading] = useState(true)
     const [total, setTotal] = useState(0)
@@ -58,7 +60,7 @@ export default function ProfilesTab() {
 
     const handleDelete = async (ids) => {
         await MLXService.removeProfiles(ids)
-        showToast(`Đã xoá ${ids.length} profile`)
+        showToast(t('mlx.profilesDeleted', { count: ids.length }))
         setDeleteTarget(null)
         fetchProfiles()
     }
@@ -88,7 +90,7 @@ export default function ProfilesTab() {
                 password: createForm.proxyPass || undefined,
             } : null
             await MLXService.createProfile({ name: createForm.name.trim(), proxy })
-            showToast('Tạo profile thành công')
+            showToast(t('mlx.profileCreated'))
             setCreateModal(false)
             setCreateForm({ name: '', proxyHost: '', proxyPort: '', proxyUser: '', proxyPass: '', proxyType: 'socks5' })
             fetchProfiles()
@@ -110,8 +112,8 @@ export default function ProfilesTab() {
 
             {deleteTarget && (
                 <ConfirmModal
-                    title="Xoá Profiles"
-                    description={`Xoá vĩnh viễn ${deleteTarget.length} profile đã chọn? Không thể hoàn tác!`}
+                    title={t('mlx.deleteProfiles')}
+                    description={t('mlx.deleteProfilesDesc', { count: deleteTarget.length })}
                     danger
                     onConfirm={() => handleDelete(deleteTarget)}
                     onClose={() => setDeleteTarget(null)}
@@ -119,18 +121,18 @@ export default function ProfilesTab() {
             )}
 
             {createModal && (
-                <Modal title="Tạo Profile MLX mới" onClose={() => setCreateModal(false)} width="max-w-lg">
+                <Modal title={t('mlx.createProfile')} onClose={() => setCreateModal(false)} width="max-w-lg">
                     <div className="space-y-4">
                         <div>
-                            <label className="text-xs text-slate-500 mb-1.5 block font-medium">Tên Profile *</label>
+                            <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('mlx.profileName')} *</label>
                             <input value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))}
-                                className={inputCls} placeholder="Nhập tên profile..." />
+                                className={inputCls} placeholder={t('mlx.profileNamePlaceholder')} />
                         </div>
                         <div className="border-t border-white/5 pt-4">
-                            <p className="text-xs text-slate-500 font-medium mb-3">Proxy (tuỳ chọn)</p>
+                            <p className="text-xs text-slate-500 font-medium mb-3">{t('mlx.proxyOptional')}</p>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="text-xs text-slate-600 mb-1 block">Loại</label>
+                                    <label className="text-xs text-slate-600 mb-1 block">{t('mlx.proxyType')}</label>
                                     <Select value={createForm.proxyType} onChange={e => setCreateForm(f => ({ ...f, proxyType: e.target.value }))}>
                                         <option value="socks5">SOCKS5</option>
                                         <option value="socks4">SOCKS4</option>
@@ -161,10 +163,10 @@ export default function ProfilesTab() {
                             </div>
                         </div>
                         <div className="flex justify-end gap-2 pt-1">
-                            <button onClick={() => setCreateModal(false)} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Huỷ</button>
+                            <button onClick={() => setCreateModal(false)} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">{t('common.cancel')}</button>
                             <button onClick={doCreate} disabled={createLoading}
                                 className="px-5 py-2 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20 disabled:opacity-60 transition-all">
-                                {createLoading ? 'Đang tạo...' : 'Tạo Profile'}
+                                {createLoading ? t('common.processing') : t('mlx.createProfileBtn')}
                             </button>
                         </div>
                     </div>
@@ -173,8 +175,8 @@ export default function ProfilesTab() {
 
             <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
                 <p className="text-sm text-slate-500">
-                    Tổng: <span className="text-slate-300 font-medium">{total}</span> profiles
-                    {selected.size > 0 && <span className="ml-2 text-blue-400">· Chọn {selected.size}</span>}
+                    {t('common.total')}: <span className="text-slate-300 font-medium">{total}</span> profiles
+                    {selected.size > 0 && <span className="ml-2 text-blue-400">· {t('mlx.selected', { count: selected.size })}</span>}
                 </p>
                 <div className="flex flex-wrap gap-2">
                     <div className="relative">
@@ -183,7 +185,7 @@ export default function ProfilesTab() {
                             value={searchInput}
                             onChange={e => setSearchInput(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && doSearch()}
-                            placeholder="Tìm profile..."
+                            placeholder={t('mlx.searchProfile')}
                             className="pl-8 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/40 w-44 transition-all"
                         />
                     </div>
@@ -192,20 +194,20 @@ export default function ProfilesTab() {
                         <button onClick={() => setDeleteTarget([...selected])}
                             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-red-400 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 transition-all">
                             <Trash2 size={13} />
-                            Xoá ({selected.size})
+                            {t('common.delete')} ({selected.size})
                         </button>
                     )}
 
                     <button onClick={() => setCreateModal(true)}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20 transition-all">
                         <Plus size={13} />
-                        Tạo Profile
+                        {t('mlx.createProfileBtn')}
                     </button>
 
                     <button onClick={fetchProfiles} disabled={loading}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs text-slate-400 hover:text-slate-200 bg-white/5 hover:bg-white/10 transition-all disabled:opacity-50">
                         <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-                        Làm mới
+                        {t('common.refresh')}
                     </button>
                 </div>
             </div>
@@ -222,7 +224,7 @@ export default function ProfilesTab() {
                                             : <Square size={15} />}
                                     </button>
                                 </th>
-                                {['Tên Profile', 'Browser', 'OS', 'Ngày tạo', 'Thao tác'].map(h => (
+                                {[t('mlx.colProfileName'), 'Browser', 'OS', t('mlx.colCreatedAt'), t('common.actions')].map(h => (
                                     <th key={h} className="text-left text-xs text-slate-500 font-semibold uppercase tracking-wider px-4 py-3.5">{h}</th>
                                 ))}
                             </tr>
@@ -301,7 +303,7 @@ export default function ProfilesTab() {
 
                 {totalPages > 1 && (
                     <div className="flex items-center justify-between px-4 py-3 border-t border-white/5">
-                        <p className="text-xs text-slate-500">Trang {page} / {totalPages} · {total} profiles</p>
+                        <p className="text-xs text-slate-500">{t('mlx.page')} {page} / {totalPages} · {total} profiles</p>
                         <div className="flex gap-1">
                             <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
                                 className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 flex items-center justify-center text-slate-400 transition-all">

@@ -6,8 +6,10 @@ import {
 import { MLXService } from '../../services/apiService'
 import ConfirmModal from './ConfirmModal'
 import { showToast } from '../Toast'
+import { useT } from '../../lib/i18n'
 
 export default function LocalProfilesTab() {
+    const t = useT()
     const [profiles, setProfiles] = useState([])
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
@@ -22,7 +24,7 @@ export default function LocalProfilesTab() {
                 setProfiles(res.data || [])
             }
         } catch (e) {
-            showToast('Không thể tải danh sách profile local', 'error')
+            showToast(t('mlx.cannotLoadLocalProfiles'), 'error')
         } finally {
             setLoading(false)
         }
@@ -33,7 +35,7 @@ export default function LocalProfilesTab() {
     const handleDeleteOne = async (id) => {
         try {
             await MLXService.deleteLocalProfile(id)
-            showToast('Đã xoá profile local')
+            showToast(t('mlx.localProfileDeleted'))
             fetchLocalProfiles()
         } catch (e) {
             showToast(e.message, 'error')
@@ -46,7 +48,7 @@ export default function LocalProfilesTab() {
         setClearingAll(true)
         try {
             const res = await MLXService.clearLocalProfiles()
-            showToast(res.message || 'Đã dọn dẹp tất cả profile local')
+            showToast(res.message || t('mlx.localProfilesCleared'))
             fetchLocalProfiles()
         } catch (e) {
             showToast(e.message, 'error')
@@ -73,8 +75,8 @@ export default function LocalProfilesTab() {
         <div className="space-y-4">
             {deleteTarget && (
                 <ConfirmModal
-                    title="Xoá Profile Local"
-                    description={`Bạn có chắc chắn muốn xoá vĩnh viễn thư mục profile ${deleteTarget} dưới máy? Hành động này không xoá profile trên cloud.`}
+                    title={t('mlx.deleteLocalProfile')}
+                    description={t('mlx.deleteLocalProfileDesc', { id: deleteTarget })}
                     danger
                     onConfirm={() => handleDeleteOne(deleteTarget)}
                     onClose={() => setDeleteTarget(null)}
@@ -84,9 +86,9 @@ export default function LocalProfilesTab() {
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
                 <div>
                     <p className="text-sm text-slate-500">
-                        Thư mục: <span className="text-slate-300 font-medium">{profiles.length}</span> folders
+                        {t('mlx.localFolders')}: <span className="text-slate-300 font-medium">{profiles.length}</span> folders
                         <span className="mx-2 text-slate-700">|</span>
-                        Dung lượng: <span className="text-amber-400 font-bold">{formatSize(totalSize)}</span>
+                        {t('mlx.storage')}: <span className="text-amber-400 font-bold">{formatSize(totalSize)}</span>
                     </p>
                 </div>
 
@@ -96,7 +98,7 @@ export default function LocalProfilesTab() {
                         <input
                             value={search}
                             onChange={e => setSearch(e.target.value)}
-                            placeholder="Tìm ID profile..."
+                            placeholder={t('mlx.searchProfileId')}
                             className="pl-8 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/40 w-full sm:w-44 transition-all"
                         />
                     </div>
@@ -104,13 +106,13 @@ export default function LocalProfilesTab() {
                     <button onClick={handleClearAll} disabled={clearingAll || profiles.length === 0}
                         className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-red-400 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 transition-all disabled:opacity-30">
                         {clearingAll ? <RefreshCw size={13} className="animate-spin" /> : <ZapOff size={13} />}
-                        Dọn dẹp tất cả
+                        {t('mlx.clearAll')}
                     </button>
 
                     <button onClick={fetchLocalProfiles} disabled={loading}
                         className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs text-slate-400 hover:text-slate-200 bg-white/5 hover:bg-white/10 transition-all disabled:opacity-50">
                         <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-                        Làm mới
+                        {t('common.refresh')}
                     </button>
                 </div>
             </div>
@@ -121,9 +123,9 @@ export default function LocalProfilesTab() {
                         <thead>
                             <tr className="border-b border-white/5 bg-white/[0.02]">
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Profile ID</th>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Dung lượng</th>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Đường dẫn</th>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center w-24">Thao tác</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">{t('mlx.colSize')}</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('mlx.colPath')}</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center w-24">{t('common.actions')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
@@ -143,7 +145,7 @@ export default function LocalProfilesTab() {
                                             <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center">
                                                 <HardDrive size={20} className="text-slate-600" />
                                             </div>
-                                            <p className="text-slate-500 text-sm italic">Không có thư mục profile local nào</p>
+                                            <p className="text-slate-500 text-sm italic">{t('mlx.noLocalProfiles')}</p>
                                         </div>
                                     </td>
                                 </tr>
@@ -165,7 +167,7 @@ export default function LocalProfilesTab() {
                                             <button
                                                 onClick={() => setDeleteTarget(p.id)}
                                                 className="w-8 h-8 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white flex items-center justify-center transition-all mx-auto shadow-sm"
-                                                title="Xoá local"
+                                                title={t('mlx.deleteLocalTitle')}
                                             >
                                                 <Trash2 size={14} />
                                             </button>
@@ -183,8 +185,8 @@ export default function LocalProfilesTab() {
                     <HardDrive size={16} className="text-amber-500" />
                 </div>
                 <div className="text-xs text-slate-400 leading-relaxed pt-1">
-                    <p className="font-bold text-amber-500 mb-1 uppercase tracking-wider">Thông tin lưu ý:</p>
-                    <p>Danh sách này hiển thị các thư mục profile MLX thực tế đang chiếm dụng ổ cứng của bạn. Việc dọn dẹp ở đây sẽ <b>không xoá</b> profile trên hệ thống MLX Cloud, nhưng sẽ giải phóng dung lượng đĩa do cache và dữ liệu duyệt web local của profile đó sinh ra.</p>
+                    <p className="font-bold text-amber-500 mb-1 uppercase tracking-wider">{t('mlx.noteTitle')}:</p>
+                    <p>{t('mlx.localStorageNote')}</p>
                 </div>
             </div>
         </div>
