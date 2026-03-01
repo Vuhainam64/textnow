@@ -251,24 +251,6 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
         load();
     }, []);
 
-    // Fetch account stats khi run modal mo va group thay doi
-    useEffect(() => {
-        if (!showRunModal || !runConfig.account_group_id) {
-            setStatusCounts({});
-            return;
-        }
-        const fetchStats = async () => {
-            try {
-                const res = await AccountsService.getStats({ group_id: runConfig.account_group_id });
-                const raw = res.data?.data?.stats || [];
-                const map = {};
-                raw.forEach(s => { map[s._id] = s.count; });
-                setStatusCounts(map);
-            } catch { /* bo qua loi */ }
-        };
-        fetchStats();
-    }, [showRunModal, runConfig.account_group_id]);
-
     // ── Phát hiện execution đang chạy khi reload/F5 ──────────────────────────
     useEffect(() => {
         let cancelled = false;
@@ -461,10 +443,23 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
         }
     };
 
+    const fetchStatusCounts = async (groupId) => {
+        if (!groupId) { setStatusCounts({}); return; }
+        try {
+            const res = await AccountsService.getStats({ group_id: groupId });
+            const raw = res.data?.data?.stats || [];
+            const map = {};
+            raw.forEach(s => { map[s._id] = s.count; });
+            setStatusCounts(map);
+        } catch { /* ignore */ }
+    };
+
     const handleRun = () => {
         const sourceNode = nodes.find(n => n.type === 'sourceNode');
         if (!sourceNode) return showToast('Vui lòng thêm khối START để khởi chạy', 'warning');
         setShowRunModal(true);
+        // Fetch ngay khi mo modal neu da co group_id
+        if (runConfig.account_group_id) fetchStatusCounts(runConfig.account_group_id);
     };
 
     const handleConfirmRun = async () => {
@@ -1059,7 +1054,7 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                         <div className="space-y-5">
                             <div>
                                 <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">Nhóm tài khoản <span className="text-rose-500">*</span></label>
-                                <Select options={accountGroups.map(g => ({ value: g._id, label: g.name }))} value={runConfig.account_group_id} onChange={e => setRunConfig(c => ({ ...c, account_group_id: e.target.value }))} />
+                                <Select options={accountGroups.map(g => ({ value: g._id, label: g.name }))} value={runConfig.account_group_id} onChange={e => { setRunConfig(c => ({ ...c, account_group_id: e.target.value })); fetchStatusCounts(e.target.value); }} />
                             </div>
                             <div>
                                 <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">Nhóm proxy <span className="text-slate-600">(tuỳ chọn)</span></label>
