@@ -143,6 +143,7 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
     const socketRef = useRef(null);                               // socket singleton cho execution nay
     const [currentExecutionId, setCurrentExecutionId] = useState(null);
     const [activeNodeId, setActiveNodeId] = useState(null);       // Node dang chay
+    const [nodeVisitMap, setNodeVisitMap] = useState({});          // { [nodeId]: count } so lan da chay qua
     const [autoFollow, setAutoFollow] = useState(true);            // Tu dong cuon toi node dang chay
     const [browserPort, setBrowserPort] = useState(null);         // Port CDP khi mo browser
     const [editingPort, setEditingPort] = useState(false);        // Đang sửa port
@@ -315,7 +316,10 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
 
                 socket.on('workflow-log', handleLog);
                 socket.on('workflow-log-batch', handleBatch);
-                socket.on('workflow-node-active', ({ nodeId }) => setActiveNodeId(nodeId));
+                socket.on('workflow-node-active', ({ nodeId }) => {
+                    setActiveNodeId(nodeId);
+                    setNodeVisitMap(prev => ({ ...prev, [nodeId]: (prev[nodeId] || 0) + 1 }));
+                });
                 socket.on('workflow-status', (data) => {
                     if (data.status === 'completed' || data.status === 'failed' || data.status === 'stopped') {
                         setIsExecuting(false);
@@ -348,7 +352,7 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
         }
     }, [logs]);
 
-    // Cap nhat data._active, _onResume, _browserPort cho all nodes
+    // Cap nhat data._active, _onResume, _browserPort, _visitCount cho all nodes
     useEffect(() => {
         setNodes(nds => nds.map(n => ({
             ...n,
@@ -357,10 +361,11 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                 _active: n.id === activeNodeId,
                 _browserPort: browserPort,
                 _onResume: handleResumeFrom,
+                _visitCount: nodeVisitMap[n.id] || 0,
             }
         })));
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeNodeId, browserPort, nodes.length, setNodes]);
+    }, [activeNodeId, browserPort, nodeVisitMap, nodes.length, setNodes]);
 
     const addLog = (message, type = 'info') => {
         setLogs(prev => [...prev, {
@@ -450,6 +455,8 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
             setIsExecuting(true);
             setShowLogs(true);
             setLogs([]);
+            setNodeVisitMap({});   // Reset visit counter cho run moi
+            setActiveNodeId(null);
             addLog(`🚀 Bắt đầu khởi chạy quy trình: ${workflow.name}`, 'info');
 
             await handleSave(true);
@@ -465,43 +472,57 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
             if (runConfig.test_mode) addLog(`ℹ️ Chế độ Chạy thử: Chỉ xử lý 1 tài khoản đầu tiên.`, 'info');
 
             // Setup WebSocket connection
-            const socket = io('http://localhost:3000'); // TODO: Use env variable for base URL
+            const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000';
+            const socket = io(SOCKET_URL, {
+                transports: ['polling', 'websocket'],
+                reconnection: true,
+            });
+            socketRef.current = socket;
 
             socket.on('connect', () => {
                 socket.emit('join-execution', executionId);
                 addLog(`📡 Đã kết nối luồng cập nhật trực tiếp.`, 'info');
             });
 
+            // Single log event (legacy / test mode)
             socket.on('workflow-log', (newLog) => {
                 setLogs(prev => [...prev, {
                     ...newLog,
                     id: newLog.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                    time: newLog.timestamp
-                        ? new Date(newLog.timestamp).toLocaleTimeString('vi-VN')
-                        : new Date().toLocaleTimeString('vi-VN'),
+                    time: newLog.timestamp ? new Date(newLog.timestamp).toLocaleTimeString('vi-VN') : new Date().toLocaleTimeString('vi-VN'),
                 }]);
+                const portMatch = newLog?.message?.match(/CDP Port: (\d+)/);
+                if (portMatch) setBrowserPort(portMatch[1]);
+                const profileMatch = newLog?.message?.match(/Profile ID: ([a-f0-9\-]{30,})/);
+                if (profileMatch) setProfileId(profileMatch[1]);
+            });
+
+            // Batch log event (optimized)
+            socket.on('workflow-log-batch', (entries) => {
+                if (!Array.isArray(entries)) return;
+                let counter = 0;
+                const ts = Date.now();
+                setLogs(prev => [...prev, ...entries.filter(Boolean).map(e => ({
+                    ...e,
+                    id: e.id || `b${ts}-${counter++}-${Math.random().toString(36).substr(2, 6)}`,
+                    time: e.timestamp ? new Date(e.timestamp).toLocaleTimeString('vi-VN') : new Date().toLocaleTimeString('vi-VN'),
+                }))]);
             });
 
             socket.on('workflow-status', (data) => {
                 if (data.status === 'completed' || data.status === 'failed' || data.status === 'stopped') {
                     setIsExecuting(false);
                     setCurrentExecutionId(null);
-                    setActiveNodeId(null);   // Reset highlight
+                    setActiveNodeId(null);
                     socket.disconnect();
+                    socketRef.current = null;
                 }
             });
 
-            // Highlight khối đang chạy
+            // Highlight khối đang chạy + tăng visit count
             socket.on('workflow-node-active', ({ nodeId }) => {
                 setActiveNodeId(nodeId);
-            });
-
-            // Phat hien port va profileId tu log
-            socket.on('workflow-log', (newLog) => {
-                const portMatch = newLog?.message?.match(/CDP Port: (\d+)/);
-                if (portMatch) setBrowserPort(portMatch[1]);
-                const profileMatch = newLog?.message?.match(/Profile ID: ([a-f0-9\-]{30,})/);
-                if (profileMatch) setProfileId(profileMatch[1]);
+                setNodeVisitMap(prev => ({ ...prev, [nodeId]: (prev[nodeId] || 0) + 1 }));
             });
 
             socket.on('disconnect', () => {

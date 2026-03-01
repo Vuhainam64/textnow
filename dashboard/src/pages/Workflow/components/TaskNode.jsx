@@ -4,14 +4,14 @@ import * as Icons from 'lucide-react';
 
 // Cac block luon thanh cong — chi co 1 dau ra (khong can TRUE/FALSE)
 const SINGLE_OUTPUT_BLOCKS = [
-    'Ch\u1edd \u0111\u1ee3i',
-    'Khai b\u00e1o bi\u1ebfn',
-    'C\u1eadp nh\u1eadt tr\u1ea1ng th\u00e1i',
-    'Xo\u00e1 profile',
-    'Xo\u00e1 profile local',
-    '\u0110\u00f3ng tr\u00ecnh duy\u1ec7t',
-    'Xo\u00e1 t\u1ea5t c\u1ea3 Mail',
-    'C\u1eadp nh\u1eadt m\u1eadt kh\u1ea9u',
+    'Chờ đợi',
+    'Khai báo biến',
+    'Cập nhật trạng thái',
+    'Xoá profile',
+    'Xoá profile local',
+    'Đóng trình duyệt',
+    'Xoá tất cả Mail',
+    'Cập nhật mật khẩu',
 ];
 
 const TaskNode = ({ id, data, selected }) => {
@@ -21,15 +21,19 @@ const TaskNode = ({ id, data, selected }) => {
     const isActive = !!data._active;
     const hasPort = !!data._browserPort;
     const onResume = data._onResume;
+    const visitCount = data._visitCount || 0;
+    const wasVisited = visitCount > 0 && !isActive;
 
     return (
         <div
             className={`px-4 py-3 rounded-xl glass border-2 transition-all min-w-[160px] relative group/node
                 ${isActive
                     ? 'border-amber-400 shadow-[0_0_24px_4px_rgba(251,191,36,0.35)]'
-                    : selected
-                        ? 'border-blue-500 shadow-lg shadow-blue-500/20'
-                        : 'border-white/5 hover:border-white/20'
+                    : wasVisited
+                        ? 'border-emerald-500/50 shadow-[0_0_10px_1px_rgba(16,185,129,0.15)]'
+                        : selected
+                            ? 'border-blue-500 shadow-lg shadow-blue-500/20'
+                            : 'border-white/5 hover:border-white/20'
                 }`}
         >
             {/* Input handle (top) */}
@@ -37,14 +41,26 @@ const TaskNode = ({ id, data, selected }) => {
 
             {/* Active spinner */}
             {isActive && (
-                <div className="absolute -top-2 -right-2 w-4 h-4 rounded-full bg-amber-400 flex items-center justify-center shadow-lg shadow-amber-400/50">
+                <div className="absolute -top-2 -right-2 w-4 h-4 rounded-full bg-amber-400 flex items-center justify-center shadow-lg shadow-amber-400/50 z-10">
                     <Icons.Loader2 size={10} className="text-black animate-spin" />
+                </div>
+            )}
+
+            {/* Visit count badge — hien thi so lan da chay qua */}
+            {!isActive && visitCount > 0 && (
+                <div
+                    className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/40 z-10"
+                    title={`Đã chạy qua ${visitCount} lần`}
+                >
+                    <span className="text-[9px] font-bold text-black leading-none">
+                        {visitCount > 99 ? '99+' : visitCount}
+                    </span>
                 </div>
             )}
 
             {/* Resume button — hien khi hover, an khi dang chay */}
             {!isActive && onResume && (
-                <div className="absolute -top-2 -right-2 opacity-0 group-hover/node:opacity-100 transition-all duration-150 pointer-events-none group-hover/node:pointer-events-auto">
+                <div className="absolute -top-2 -right-2 opacity-0 group-hover/node:opacity-100 transition-all duration-150 pointer-events-none group-hover/node:pointer-events-auto z-20">
                     <button
                         onClick={(e) => { e.stopPropagation(); onResume(id); }}
                         title={hasPort
@@ -70,7 +86,9 @@ const TaskNode = ({ id, data, selected }) => {
                 </div>
                 <div className="min-w-0">
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider leading-none mb-1 truncate">{data.category}</p>
-                    <p className={`text-sm font-semibold truncate ${isActive ? 'text-amber-300' : 'text-slate-200'}`}>{data.label}</p>
+                    <p className={`text-sm font-semibold truncate ${isActive ? 'text-amber-300' : wasVisited ? 'text-emerald-300' : 'text-slate-200'}`}>
+                        {data.label}
+                    </p>
                 </div>
             </div>
 
