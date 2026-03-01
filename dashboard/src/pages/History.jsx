@@ -711,10 +711,8 @@ export default function History() {
                             </div>
                         ) : viewMode === 'error' ? (
                             /* ─ ERROR VIEW with filter + search ─ */
-                            (() => {
-                                const allErrLogs = logs.filter(l => l.type === 'error' || l.type === 'warning');
-                                return <ErrorView logs={allErrLogs} />;
-                            })()
+                            <ErrorView logs={logs.filter(l => l.type === 'error' || l.type === 'warning')} />
+
 
                         ) : (
                             /* ─ THREAD VIEW ─ */
