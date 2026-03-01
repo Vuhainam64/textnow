@@ -46,6 +46,7 @@ export const NODE_TEMPLATES = [
     { type: 'taskNode', label: 'Điều kiện', category: 'Logic', icon: 'GitBranch', color: 'bg-cyan-500/20 text-cyan-400', config: { type: 'element_exists', selector: '', timeout: 10 } },
 
     // Category: Hệ thống (Advanced)
+    // Cac status hop le: active | inactive | banned | pending | die_mail | no_mail | Reset Error | verified | captcha
     { type: 'taskNode', label: 'Cập nhật trạng thái', category: 'Hệ thống', icon: 'UserCog', color: 'bg-orange-500/20 text-orange-400', config: { status: 'active', timeout: 10 } },
     { type: 'taskNode', label: 'Cập nhật mật khẩu', category: 'Hệ thống', icon: 'KeyRound', color: 'bg-yellow-500/20 text-yellow-400', config: { password: '{{new_password}}', timeout: 10 } },
 ];
