@@ -31,17 +31,17 @@ export async function handleKiemTraEmail(executionId, config, context, engine) {
     const { hotmail_user: mail, hotmail_client_id: clientId, hotmail_token: refreshToken } = context.account;
     const maxRetries = parseInt(config.retries) || 1;
 
-    engine._log(executionId, `   + Dang kiem tra trang thai Hotmail: ${mail} (Thu toi da ${maxRetries} lan)...`);
+    context.log(`   + Dang kiem tra trang thai Hotmail: ${mail} (Thu toi da ${maxRetries} lan)...`);
 
     if (!mail || !refreshToken || !clientId) {
-        engine._log(executionId, `   - Thieu cau hinh Hotmail (Email/CID/Token)`, 'error');
+        context.log(`   - Thieu cau hinh Hotmail (Email/CID/Token)`, 'error');
         return false;
     }
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
             if (attempt > 1) {
-                engine._log(executionId, `   Dang thu lai lan ${attempt}/${maxRetries}...`);
+                context.log(`   Dang thu lai lan ${attempt}/${maxRetries}...`);
                 await engine._wait(executionId, 3000);
             }
 
@@ -61,22 +61,22 @@ export async function handleKiemTraEmail(executionId, config, context, engine) {
                 });
                 imap.once('ready', () => { imap.end(); resolve(true); });
                 imap.once('error', (err) => {
-                    engine._log(executionId, `   - Loi lan ${attempt}: ${err.message}`);
+                    context.log(`   - Loi lan ${attempt}: ${err.message}`);
                     resolve(false);
                 });
                 imap.connect();
             });
 
             if (isLive) {
-                engine._log(executionId, `   + Email dang hoat dong tot (IMAP Ready).`);
+                context.log(`   + Email dang hoat dong tot (IMAP Ready).`);
                 return true;
             }
         } catch (err) {
-            engine._log(executionId, `   - Loi xac thuc hoac ket noi lan ${attempt}: ${err.response?.data?.error_description || err.message}`);
+            context.log(`   - Loi xac thuc hoac ket noi lan ${attempt}: ${err.response?.data?.error_description || err.message}`);
         }
     }
 
-    engine._log(executionId, `   Da thu ${maxRetries} lan nhung khong thanh cong.`);
+    context.log(`   Da thu ${maxRetries} lan nhung khong thanh cong.`);
     return false;
 }
 
@@ -197,23 +197,23 @@ export async function handleDocEmail(executionId, config, context, engine) {
     const extractPattern = config.extract_pattern || '';
     const outputVar = config.output_variable || 'result';
 
-    engine._log(executionId, `   + Tim email [from: ${fromFilter || 'bat ky'}] [tieu de chua: "${subjectFilter || 'bat ky'}"] [INBOX + Junk]...`);
+    context.log(`   + Tim email [from: ${fromFilter || 'bat ky'}] [tieu de chua: "${subjectFilter || 'bat ky'}"] [INBOX + Junk]...`);
 
     if (!mail || !refreshToken || !clientId) {
-        engine._log(executionId, `   - Thieu cau hinh Hotmail (Email/CID/Token)`, 'error');
+        context.log(`   - Thieu cau hinh Hotmail (Email/CID/Token)`, 'error');
         return false;
     }
 
     // Cho truoc lan thu dau tien neu can
     if (waitBefore > 0) {
-        engine._log(executionId, `   + Cho ${waitBefore}s truoc khi kiem tra email...`);
+        context.log(`   + Cho ${waitBefore}s truoc khi kiem tra email...`);
         await engine._wait(executionId, waitBefore * 1000);
     }
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
             if (attempt > 1) {
-                engine._log(executionId, `   Cho ${waitSeconds}s truoc lan thu ${attempt}/${maxRetries}...`);
+                context.log(`   Cho ${waitSeconds}s truoc lan thu ${attempt}/${maxRetries}...`);
                 await engine._wait(executionId, waitSeconds * 1000);
             }
 
@@ -222,27 +222,27 @@ export async function handleDocEmail(executionId, config, context, engine) {
             const email = await fetchEmailFromIMAP({ mail, authString, fromFilter, subjectFilter });
 
             if (!email) {
-                engine._log(executionId, `   - Chua tim thay email phu hop trong INBOX va Junk. Thu lai...`);
+                context.log(`   - Chua tim thay email phu hop trong INBOX va Junk. Thu lai...`);
                 continue;
             }
 
-            engine._log(executionId, `   + Tim thay email: "${email.subject}"`);
+            context.log(`   + Tim thay email: "${email.subject}"`);
             const value = extractFromEmail(email, extractType, extractPattern);
 
             if (value) {
                 context[outputVar] = value;
                 const preview = value.length > 80 ? value.substring(0, 80) + '...' : value;
-                engine._log(executionId, `   + Trich xuat thanh cong [${outputVar}]: ${preview}`);
+                context.log(`   + Trich xuat thanh cong [${outputVar}]: ${preview}`);
                 return true;
             } else {
-                engine._log(executionId, `   Email tim thay nhung khong trich xuat duoc du lieu.`, 'warning');
+                context.log(`   Email tim thay nhung khong trich xuat duoc du lieu.`, 'warning');
             }
         } catch (err) {
-            engine._log(executionId, `   - Loi lan ${attempt}: ${err.message}`);
+            context.log(`   - Loi lan ${attempt}: ${err.message}`);
         }
     }
 
-    engine._log(executionId, `   Da thu ${maxRetries} lan, khong lay duoc du lieu.`);
+    context.log(`   Da thu ${maxRetries} lan, khong lay duoc du lieu.`);
     return false;
 }
 
@@ -251,7 +251,7 @@ export async function handleXoaMail(executionId, config, context, engine) {
     const { hotmail_user: mail, hotmail_client_id: clientId, hotmail_token: refreshToken } = context.account;
     const targetFolders = (config.folders || 'INBOX,Junk').split(',').map(f => f.trim());
 
-    engine._log(executionId, `   + Dang tien hanh xoa mail cho: ${mail}...`);
+    context.log(`   + Dang tien hanh xoa mail cho: ${mail}...`);
 
     try {
         const accessToken = await getOAuthToken(clientId, refreshToken);
@@ -275,7 +275,7 @@ export async function handleXoaMail(executionId, config, context, engine) {
                                 if (err) return resFolder();
                                 imap.search(['ALL'], (err, results) => {
                                     if (err || !results || results.length === 0) return resFolder();
-                                    engine._log(executionId, `   + Tim thay ${results.length} mail trong ${folder}. Dang xoa...`);
+                                    context.log(`   + Tim thay ${results.length} mail trong ${folder}. Dang xoa...`);
                                     imap.addFlags(results, '\\Deleted', (err) => {
                                         if (err) return rejFolder(err);
                                         imap.expunge((err) => { if (err) return rejFolder(err); resFolder(); });
@@ -284,22 +284,22 @@ export async function handleXoaMail(executionId, config, context, engine) {
                             });
                         });
                     } catch (err) {
-                        engine._log(executionId, `   Loi xoa mail trong ${folder}: ${err.message}`, 'warning');
+                        context.log(`   Loi xoa mail trong ${folder}: ${err.message}`, 'warning');
                     }
                 }
-                engine._log(executionId, `   + Da xoa sach mail trong cac thu muc: ${targetFolders.join(', ')}`);
+                context.log(`   + Da xoa sach mail trong cac thu muc: ${targetFolders.join(', ')}`);
                 imap.end();
                 resolve(true);
             });
 
             imap.once('error', (err) => {
-                engine._log(executionId, `   - Loi IMAP: ${err.message}`);
+                context.log(`   - Loi IMAP: ${err.message}`);
                 resolve(false);
             });
             imap.connect();
         });
     } catch (err) {
-        engine._log(executionId, `   - Loi thuc thi xoa mail: ${err.message}`);
+        context.log(`   - Loi thuc thi xoa mail: ${err.message}`);
         return false;
     }
 }

@@ -135,11 +135,13 @@ class WorkflowEngine {
                     account,
                     threadId,
                     proxy: null,
-                    profileId: profile_id || null,  // Restore tu header UI khi resume
+                    profileId: profile_id || null,
                     browser: null,
                     context: null,
                     page: null,
                     new_password,
+                    // Shortcut: context.log(msg, type) thay vi engine._log(executionId, msg, type, threadId)
+                    log: (message, type = 'default') => this._log(executionId, message, type, threadId),
                 };
 
                 try {
@@ -332,7 +334,8 @@ class WorkflowEngine {
      */
     async _executeNode(executionId, node, context) {
         const { label, config } = node.data;
-        this._log(executionId, `⚙️ Đang thực hiện: ${label}...`);
+        const tid = context.threadId || null;
+        this._log(executionId, `⚙️ Đang thực hiện: ${label}...`, 'default', tid);
 
         // Emit node-active để frontend highlight khối đang chạy
         socketService.to(executionId).emit('workflow-node-active', { nodeId: node.id });
@@ -355,18 +358,15 @@ class WorkflowEngine {
             if (delayMax > 0 && delayMax >= delayMin) {
                 const randomDelay = Math.floor(Math.random() * (delayMax - delayMin + 1)) + delayMin;
                 if (randomDelay > 0) {
-                    this._log(executionId, `   ⏳ Nghỉ ngẫu nhiên ${randomDelay} giây trước khối tiếp theo...`);
+                    this._log(executionId, `   ⏳ Nghỉ ngẫu nhiên ${randomDelay} giây trước khối tiếp theo...`, 'default', tid);
                     await this._wait(executionId, randomDelay * 1000);
                 }
             }
 
             return result;
         } catch (err) {
-            // USER_ABORTED → re-throw de dung han thread
             if (err.message === 'USER_ABORTED') throw err;
-
-            // Timeout hoac loi khac → log va tra ve false (di nhanh false thay vi dung thread)
-            this._log(executionId, `   Loi: ${err.message}`, 'error', context.threadId);
+            this._log(executionId, `   Lỗi: ${err.message}`, 'error', tid);
             return false;
         }
     }
