@@ -56,6 +56,8 @@ const vi = {
         saving: 'Đang lưu...',
         confirm: 'Xác nhận',
         processing: 'Đang xử lý...',
+        loading: 'Đang tải...',
+        all: 'Tất cả',
     },
 
     // ── Navigation ───────────────────────────────────────────────────
@@ -232,7 +234,7 @@ const vi = {
         searchPlaceholder: 'Tìm kiếm host, username...',
     },
 
-    // ── Workflow ─────────────────────────────────────────────────────
+    // ── Workflow ───────────qua x──────────────────────────────────────────
     workflow: {
         title: 'Tự động hóa',
         subtitle: 'Quản lý và thiết kế quy trình tương tác tài khoản',
@@ -307,6 +309,51 @@ const vi = {
         noHistory: 'Chưa có lịch sử thực thi',
         allWorkflows: 'Tất cả quy trình',
         filterByWorkflow: 'Lọc theo quy trình',
+    },
+
+    // ── History ──────────────────────────────────────────────────────
+    history: {
+        title: 'Lịch sử',
+        subtitle: 'Lịch sử thực thi workflow',
+        noHistory: 'Chưa có lịch sử',
+        running: 'Đang chạy',
+        completed: 'Hoàn thành',
+        failed: 'Thất bại',
+        stopped: 'Đã dừng',
+        stopping: 'Đang dừng',
+        success: 'Thành công',
+        error: 'Lỗi',
+        warning: 'Cảnh báo',
+        noRuns: 'Chưa có lần chạy nào.',
+        createWorkflow: 'Tạo workflow',
+        toStart: 'để bắt đầu',
+        selectRun: 'Chọn một lần chạy để xem chi tiết',
+        runDetail: 'Chi tiết lần chạy',
+        logTab: 'Log',
+        threadTab: 'Luồng',
+        errorTab: 'Lỗi',
+        stop: 'Dừng',
+        stopAll: 'Dừng tất cả',
+        stopAllTitle: 'Dừng tất cả tiến trình mimic đang chạy',
+        stopSent: 'Đã gửi yêu cầu dừng',
+        stopAllSent: 'Đã dừng tất cả tiến trình mimic',
+        threads: 'luồng',
+        limit: 'Giới hạn',
+        statuses: 'Trạng thái',
+        filter: 'Lọc',
+        hiddenLogs: '{count} log cũ đã bị ẩn (hiện thị {max} log gần nhất)',
+        loadingLogs: 'Đang tải logs...',
+        noLogs: 'Chưa có log nào.',
+        waitingForAccounts: 'Đang chờ tài khoản bắt đầu...',
+        noThreadData: 'Không có dữ liệu luồng.',
+        searchAccounts: 'Tìm kiếm trong {count} tài khoản...',
+        searchErrors: 'Tìm kiếm lỗi, tài khoản...',
+        results: 'kết quả',
+        noErrors: 'Không có lỗi nào 🎉',
+        noResults: 'Không tìm thấy kết quả',
+        noAccountFound: 'Không tìm thấy tài khoản nào.',
+        loadMore: 'Tải thêm',
+        remaining: 'còn lại',
     },
 
     // ── Modals / Forms ───────────────────────────────────────────────

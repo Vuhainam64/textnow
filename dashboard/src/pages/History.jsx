@@ -9,20 +9,21 @@ import {
 import { WorkflowsService, MLXService } from '../services/apiService';
 import { showToast } from '../components/Toast';
 import { useExecutionSocket } from '../hooks/useExecutionSocket';
+import { useT } from '../lib/i18n';
 
-// ─── Status config ─────────────────────────────────────────────────────────────
+// ─── Status config (labels resolved via t() at render time) ───────────────────
 const STATUS = {
-    running: { label: 'Đang chạy', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/30', dot: 'bg-blue-400', Icon: Loader2, spin: true },
-    completed: { label: 'Hoàn thành', color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', dot: 'bg-emerald-400', Icon: CheckCircle2, spin: false },
-    failed: { label: 'Thất bại', color: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20', dot: 'bg-rose-400', Icon: XCircle, spin: false },
-    stopped: { label: 'Đã dừng', color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20', dot: 'bg-amber-400', Icon: Square, spin: false },
-    stopping: { label: 'Đang dừng', color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20', dot: 'bg-amber-400', Icon: Loader2, spin: true },
+    running: { key: 'history.running', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/30', dot: 'bg-blue-400', Icon: Loader2, spin: true },
+    completed: { key: 'history.completed', color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', dot: 'bg-emerald-400', Icon: CheckCircle2, spin: false },
+    failed: { key: 'history.failed', color: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20', dot: 'bg-rose-400', Icon: XCircle, spin: false },
+    stopped: { key: 'history.stopped', color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20', dot: 'bg-amber-400', Icon: Square, spin: false },
+    stopping: { key: 'history.stopping', color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20', dot: 'bg-amber-400', Icon: Loader2, spin: true },
 };
 
 const THREAD_STATUS = {
-    running: { label: 'Đang chạy', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20', Icon: Loader2, spin: true },
-    success: { label: 'Thành công', color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', Icon: CheckCircle2, spin: false },
-    error: { label: 'Lỗi', color: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20', Icon: XCircle, spin: false },
+    running: { key: 'history.running', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20', Icon: Loader2, spin: true },
+    success: { key: 'history.success', color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', Icon: CheckCircle2, spin: false },
+    error: { key: 'history.error', color: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20', Icon: XCircle, spin: false },
 };
 
 const LOG_COLORS = {
@@ -99,6 +100,7 @@ function LogLine({ log }) {
 
 // ThreadCard — lazy load logs khi user click mo
 function ThreadCard({ thread, executionId }) {
+    const t = useT();
     const [open, setOpen] = useState(false);
     const [threadLogs, setThreadLogs] = useState(null); // null = chua load
     const [loadingLogs, setLoadingLogs] = useState(false);
@@ -134,7 +136,7 @@ function ThreadCard({ thread, executionId }) {
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-slate-200 truncate">{thread.user}</span>
-                        <span className={`text-[10px] font-bold ${s.color}`}>{s.label}</span>
+                        <span className={`text-[10px] font-bold ${s.color}`}>{t(s.key)}</span>
                     </div>
                     <div className="flex items-center gap-2 text-[10px] text-slate-600 mt-px">
                         <span>[{thread.index}/{thread.total}]</span>
@@ -151,10 +153,10 @@ function ThreadCard({ thread, executionId }) {
                 <div className="border-t border-white/5 bg-black/20 px-4 py-3 max-h-52 overflow-y-auto font-mono text-[11px] leading-relaxed space-y-0.5 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
                     {loadingLogs ? (
                         <div className="flex items-center gap-2 text-slate-600">
-                            <Loader2 size={12} className="animate-spin" /> Đang tải...
+                            <Loader2 size={12} className="animate-spin" /> {t('common.loading')}
                         </div>
                     ) : !threadLogs || threadLogs.length === 0 ? (
-                        <p className="text-slate-700 italic">Không có log.</p>
+                        <p className="text-slate-700 italic">{t('history.noLogs')}</p>
                     ) : threadLogs.map((log, i) => (
                         <LogLine key={log.id || i} log={log} />
                     ))}
@@ -167,6 +169,7 @@ function ThreadCard({ thread, executionId }) {
 
 // ─── Error View (filter + search) ────────────────────────────────────────────
 function ErrorView({ logs }) {
+    const t = useT();
     const [errFilter, setErrFilter] = useState('all'); // 'all' | 'error' | 'warning'
     const [search, setSearch] = useState('');
 
@@ -196,7 +199,7 @@ function ErrorView({ logs }) {
                             ? 'bg-slate-600/40 text-slate-200 border-slate-500/40'
                             : 'text-slate-500 border-white/10 hover:border-white/20'}`}
                     >
-                        Tất cả ({errorCount + warnCount})
+                        {t('common.all')} ({errorCount + warnCount})
                     </button>
                     <button
                         onClick={() => setErrFilter('error')}
@@ -205,7 +208,7 @@ function ErrorView({ logs }) {
                             : 'text-slate-500 border-white/10 hover:text-rose-400 hover:border-rose-500/30'}`}
                     >
                         <span className="w-1.5 h-1.5 rounded-full bg-rose-400 inline-block" />
-                        Lỗi ({errorCount})
+                        {t('history.error')} ({errorCount})
                     </button>
                     <button
                         onClick={() => setErrFilter('warning')}
@@ -214,7 +217,7 @@ function ErrorView({ logs }) {
                             : 'text-slate-500 border-white/10 hover:text-amber-400 hover:border-amber-500/30'}`}
                     >
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
-                        Cảnh báo ({warnCount})
+                        {t('history.warning')} ({warnCount})
                     </button>
                 </div>
 
@@ -224,14 +227,14 @@ function ErrorView({ logs }) {
                         type="text"
                         value={search}
                         onChange={e => setSearch(e.target.value)}
-                        placeholder="Tìm kiếm lỗi, tài khoản..."
+                        placeholder={t('history.searchErrors')}
                         className="w-full px-3 py-1 rounded-lg bg-white/5 border border-white/10 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-rose-500/30 font-mono"
                     />
                 </div>
 
                 {/* Result count */}
                 {(errFilter !== 'all' || search) && (
-                    <span className="text-[10px] text-slate-600 shrink-0">{visible.length} kết quả</span>
+                    <span className="text-[10px] text-slate-600 shrink-0">{visible.length} {t('history.results')}</span>
                 )}
             </div>
 
@@ -240,7 +243,7 @@ function ErrorView({ logs }) {
                 {visible.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-40 text-slate-600 gap-3">
                         <CheckCircle2 size={24} className="text-emerald-700" />
-                        <p className="text-sm">{logs.length === 0 ? 'Không có lỗi nào 🎉' : 'Không tìm thấy kết quả'}</p>
+                        <p className="text-sm">{logs.length === 0 ? t('history.noErrors') : t('history.noResults')}</p>
                     </div>
                 ) : (
                     <div className="space-y-1">
@@ -278,6 +281,7 @@ function ErrorView({ logs }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function History() {
+    const t = useT();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
 
@@ -417,7 +421,7 @@ export default function History() {
         setStopping(true);
         try {
             await WorkflowsService.stop(selectedId);
-            showToast('Đã gửi yêu cầu dừng', 'warning');
+            showToast(t('history.stopSent'), 'warning');
         } catch (e) {
             showToast(e.response?.data?.error || e.message, 'error');
         } finally { setStopping(false); }
@@ -427,7 +431,7 @@ export default function History() {
         setStoppingAll(true);
         try {
             await MLXService.stopAllProfiles();
-            showToast('Đã dừng tất cả tiến trình mimic', 'warning');
+            showToast(t('history.stopAllSent'), 'warning');
         } catch (e) {
             showToast(e.message, 'error');
         } finally { setStoppingAll(false); }
@@ -437,7 +441,7 @@ export default function History() {
     const runningExec = executions.filter(e => e.status === 'running').length;
     const liveStatus = execStatus || selected?.status;
     const isRunning = liveStatus === 'running' || liveStatus === 'stopping';
-    const statusCfg = STATUS[liveStatus] || STATUS.failed;
+    const statusCfg = { ...STATUS[liveStatus] || STATUS.failed, label: t((STATUS[liveStatus] || STATUS.failed).key) };
     const threadList = Object.values(threads);
 
     // Thread pagination + search
@@ -468,7 +472,7 @@ export default function History() {
                 <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <HistoryIcon size={15} className="text-slate-400" />
-                        <h2 className="text-sm font-bold text-slate-200 uppercase tracking-widest">Lịch sử</h2>
+                        <h2 className="text-sm font-bold text-slate-200 uppercase tracking-widest">{t('history.title')}</h2>
                         {runningExec > 0 && (
                             <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-[9px] font-bold">
                                 <span className="w-1 h-1 rounded-full bg-blue-400 animate-pulse" />{runningExec}
@@ -489,8 +493,8 @@ export default function History() {
                     ) : executions.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-40 text-slate-600 gap-3 px-4 text-center">
                             <Terminal size={24} />
-                            <p className="text-xs">Chưa có lần chạy nào.<br />
-                                <span className="text-blue-400 cursor-pointer" onClick={() => navigate('/tasks')}>Tạo workflow</span> để bắt đầu.
+                            <p className="text-xs">{t('history.noRuns')}<br />
+                                <span className="text-blue-400 cursor-pointer" onClick={() => navigate('/tasks')}>{t('history.createWorkflow')}</span> {t('history.toStart')}.
                             </p>
                         </div>
                     ) : executions.map(exec => {
@@ -510,7 +514,7 @@ export default function History() {
                                     <div className="flex-1 min-w-0">
                                         <p className="text-[11px] font-bold truncate text-slate-200">{exec.workflowName}</p>
                                         <div className="flex gap-2 items-center mt-px">
-                                            <span className={`text-[9px] font-bold ${s.color}`}>{s.label}</span>
+                                            <span className={`text-[9px] font-bold ${s.color}`}>{t(s.key)}</span>
                                             <span className="text-[9px] text-slate-700">·</span>
                                             <span className="text-[9px] text-slate-600">{duration(exec.started_at, exec.ended_at)}</span>
                                         </div>
@@ -531,7 +535,7 @@ export default function History() {
                 {!selectedId ? (
                     <div className="flex-1 flex flex-col items-center justify-center text-slate-600 gap-3">
                         <Terminal size={28} />
-                        <p className="text-sm font-medium">Chọn một lần chạy để xem chi tiết</p>
+                        <p className="text-sm font-medium">{t('history.selectRun')}</p>
                     </div>
                 ) : (
                     <>
@@ -540,7 +544,7 @@ export default function History() {
                             <div>
                                 <div className="flex items-center gap-2 mb-0.5">
                                     <Zap size={13} className="text-blue-400" />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Chi tiết lần chạy</span>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{t('history.runDetail')}</span>
                                 </div>
                                 <h1 className="text-lg font-bold text-white">{selected?.workflowName || selectedId}</h1>
                                 <div className="flex items-center gap-3 mt-0.5 text-[11px] text-slate-500">
@@ -550,7 +554,7 @@ export default function History() {
                                         <>
                                             <span className="text-emerald-400 font-bold">✓ {successCount}</span>
                                             <span className="text-rose-400 font-bold">✗ {errorCount}</span>
-                                            {runningCount > 0 && <span className="text-blue-400 font-bold animate-pulse">{runningCount} đang chạy</span>}
+                                            {runningCount > 0 && <span className="text-blue-400 font-bold animate-pulse">{runningCount} {t('history.running')}</span>}
                                         </>
                                     )}
                                 </div>
@@ -564,14 +568,14 @@ export default function History() {
                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'log' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300'
                                             }`}
                                     >
-                                        <Terminal size={12} /> Log
+                                        <Terminal size={12} /> {t('history.logTab')}
                                     </button>
                                     <button
                                         onClick={() => setViewMode('thread')}
                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'thread' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300'
                                             }`}
                                     >
-                                        <LayoutGrid size={12} /> Luồng
+                                        <LayoutGrid size={12} /> {t('history.threadTab')}
                                     </button>
                                     {/* Tab loi */}
                                     {(() => {
@@ -582,7 +586,7 @@ export default function History() {
                                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'error' ? 'bg-rose-600 text-white' : 'text-slate-500 hover:text-rose-400'
                                                     }`}
                                             >
-                                                <AlertTriangle size={12} /> Lỗi
+                                                <AlertTriangle size={12} /> {t('history.errorTab')}
                                                 {errCount > 0 && (
                                                     <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${viewMode === 'error' ? 'bg-white/20 text-white' : 'bg-rose-500/20 text-rose-400'}`}>
                                                         {errCount}
@@ -608,7 +612,7 @@ export default function History() {
                                         disabled={stopping || liveStatus === 'stopping'}
                                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-bold hover:bg-rose-500/20 transition-all disabled:opacity-50"
                                     >
-                                        {stopping ? <Loader2 size={12} className="animate-spin" /> : <Square size={12} />} Dừng
+                                        {stopping ? <Loader2 size={12} className="animate-spin" /> : <Square size={12} />} {t('history.stop')}
                                     </button>
                                 )}
 
@@ -616,10 +620,10 @@ export default function History() {
                                 <button
                                     onClick={handleStopAll}
                                     disabled={stoppingAll}
-                                    title="Dừng tất cả tiến trình mimic đang chạy"
+                                    title={t('history.stopAllTitle')}
                                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs font-bold hover:bg-orange-500/20 transition-all disabled:opacity-50"
                                 >
-                                    {stoppingAll ? <Loader2 size={12} className="animate-spin" /> : <XCircle size={12} />} Dừng tất cả
+                                    {stoppingAll ? <Loader2 size={12} className="animate-spin" /> : <XCircle size={12} />} {t('history.stopAll')}
                                 </button>
 
                                 <button onClick={() => loadDetail(selectedId)}
@@ -633,12 +637,12 @@ export default function History() {
                         {selected?.options && (
                             <div className="px-6 py-2 border-b border-white/5 flex items-center gap-4 text-[10px] text-slate-600 bg-white/[0.01] shrink-0 flex-wrap">
                                 <Settings2 size={11} />
-                                {selected.options.threads > 0 && <span>{selected.options.threads} luồng · {selected.options.startup_delay}s delay</span>}
-                                {selected.options.limit && <span>Giới hạn: {selected.options.limit} acc</span>}
+                                {selected.options.threads > 0 && <span>{selected.options.threads} {t('history.threads')} · {selected.options.startup_delay}s delay</span>}
+                                {selected.options.limit && <span>{t('history.limit')}: {selected.options.limit} acc</span>}
                                 {selected.options.target_statuses?.length > 0 && (
-                                    <span>Trạng thái: {selected.options.target_statuses.join(', ')}</span>
+                                    <span>{t('history.statuses')}: {selected.options.target_statuses.join(', ')}</span>
                                 )}
-                                {selected.options.new_password && <span>Password: {'*'.repeat(8)}</span>}
+                                {selected.options.new_password && <span>{t('accounts.password')}: {'*'.repeat(8)}</span>}
                             </div>
                         )}
 
@@ -651,7 +655,7 @@ export default function History() {
                                     const accounts = [...new Set(logs.filter(l => l.threadId).map(l => l.threadId.split('@')[0]))];
                                     return accounts.length > 1 ? (
                                         <div className="px-4 py-2 border-b border-white/5 bg-black/10 flex items-center gap-2 flex-wrap shrink-0">
-                                            <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider shrink-0">Lọc:</span>
+                                            <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider shrink-0">{t('history.filter')}:</span>
                                             <button
                                                 onClick={() => setFilterAccount(null)}
                                                 className={`text-[10px] px-2 py-0.5 rounded-md font-bold border transition-all ${!filterAccount
@@ -659,7 +663,7 @@ export default function History() {
                                                     : 'text-slate-500 border-white/10 hover:border-white/20'
                                                     }`}
                                             >
-                                                Tất cả ({logs.length})
+                                                {t('common.all')} ({logs.length})
                                             </button>
                                             {accounts.map(acc => {
                                                 const acColor = getAccountColor(acc, accountColorCache);
@@ -684,15 +688,15 @@ export default function History() {
                                     {hiddenLogs > 0 && (
                                         <div className="mb-2 px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/15 text-[10px] text-amber-500/70 flex items-center gap-2">
                                             <AlertTriangle size={11} />
-                                            {hiddenLogs.toLocaleString()} log cũ đã bị ẩn (hiện thị {LOG_WINDOW} log gần nhất)
+                                            {t('history.hiddenLogs', { count: hiddenLogs.toLocaleString(), max: LOG_WINDOW })}
                                         </div>
                                     )}
                                     {logsLoading && logs.length === 0 ? (
                                         <div className="flex items-center gap-2 text-slate-600 p-4">
-                                            <Loader2 size={14} className="animate-spin" /> Đang tải logs...
+                                            <Loader2 size={14} className="animate-spin" /> {t('history.loadingLogs')}
                                         </div>
                                     ) : logs.length === 0 ? (
-                                        <p className="text-slate-700 italic p-4">Chưa có log nào.</p>
+                                        <p className="text-slate-700 italic p-4">{t('history.noLogs')}</p>
                                     ) : (
                                         <div className="space-y-0.5">
                                             {filteredLogs
@@ -703,7 +707,7 @@ export default function History() {
                                     {isRunning && (
                                         <div className="flex items-center gap-2 mt-2 text-blue-400 px-2">
                                             <span className="animate-pulse text-sm">▋</span>
-                                            <span className="text-[11px]">Đang chạy...</span>
+                                            <span className="text-[11px]">{t('history.running')}...</span>
                                         </div>
                                     )}
                                     <div ref={logEndRef} />
@@ -721,7 +725,7 @@ export default function History() {
                                     <div className="flex flex-col items-center justify-center h-40 text-slate-600 gap-3">
                                         <User size={24} />
                                         <p className="text-sm">
-                                            {isRunning ? 'Đang chờ tài khoản bắt đầu...' : 'Không có dữ liệu luồng.'}
+                                            {isRunning ? t('history.waitingForAccounts') : t('history.noThreadData')}
                                         </p>
                                     </div>
                                 ) : (
@@ -756,17 +760,17 @@ export default function History() {
                                                     <div className="flex items-center gap-2 flex-wrap">
                                                         {runningCount > 0 && (
                                                             <span className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold">
-                                                                <Loader2 size={11} className="animate-spin" /> {runningCount} đang chạy
+                                                                <Loader2 size={11} className="animate-spin" /> {runningCount} {t('history.running')}
                                                             </span>
                                                         )}
                                                         {successCount > 0 && (
                                                             <span className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold">
-                                                                <CheckCircle2 size={11} /> {successCount} thành công
+                                                                <CheckCircle2 size={11} /> {successCount} {t('history.success')}
                                                             </span>
                                                         )}
                                                         {errorCount > 0 && (
                                                             <span className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-bold">
-                                                                <XCircle size={11} /> {errorCount} lỗi
+                                                                <XCircle size={11} /> {errorCount} {t('history.error')}
                                                             </span>
                                                         )}
                                                     </div>
@@ -795,7 +799,7 @@ export default function History() {
                                                 type="text"
                                                 value={threadSearch}
                                                 onChange={e => { setThreadSearch(e.target.value); setThreadPage(1); }}
-                                                placeholder={`Tìm kiếm trong ${threadList.length} tài khoản...`}
+                                                placeholder={t('history.searchAccounts', { count: threadList.length })}
                                                 className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 mb-1"
                                             />
                                         )}
@@ -803,7 +807,7 @@ export default function History() {
                                         {/* Running threads */}
                                         {threadRunning.length > 0 && (
                                             <>
-                                                <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-1">Đang chạy ({threadRunning.length})</p>
+                                                <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-1">{t('history.running')} ({threadRunning.length})</p>
                                                 {threadRunning.map(t => <ThreadCard key={t.user} thread={t} executionId={selectedId} />)}
                                             </>
                                         )}
@@ -812,7 +816,7 @@ export default function History() {
                                         {threadDone.length > 0 && (
                                             <>
                                                 <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mt-3 mb-1">
-                                                    Đã hoàn thành ({threadDone.length})
+                                                    {t('history.completed')} ({threadDone.length})
                                                 </p>
                                                 {threadDonePage.map(t => <ThreadCard key={t.user} thread={t} executionId={selectedId} />)}
                                                 {hasMoreThreads && (
@@ -820,14 +824,14 @@ export default function History() {
                                                         onClick={() => setThreadPage(p => p + 1)}
                                                         className="w-full py-2 text-xs text-slate-500 hover:text-slate-300 border border-white/5 rounded-xl hover:bg-white/5 transition-all"
                                                     >
-                                                        Tải thêm ({threadDone.length - threadPage * THREAD_PAGE_SIZE} còn lại)
+                                                        {t('history.loadMore')} ({threadDone.length - threadPage * THREAD_PAGE_SIZE} {t('history.remaining')})
                                                     </button>
                                                 )}
                                             </>
                                         )}
 
                                         {threadRunning.length === 0 && threadDone.length === 0 && threadSearch && (
-                                            <p className="text-center text-xs text-slate-600 py-8">Không tìm thấy tài khoản nào.</p>
+                                            <p className="text-center text-xs text-slate-600 py-8">{t('history.noAccountFound')}</p>
                                         )}
                                     </>
                                 )}
