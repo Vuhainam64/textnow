@@ -67,6 +67,7 @@ function duration(start, end) {
 }
 
 function LogLine({ log }) {
+    if (!log) return null;  // guard against null entries
     const colorCls = LOG_COLORS[log.type] || LOG_COLORS.default;
     const time = log.timestamp ? new Date(log.timestamp).toLocaleTimeString('vi-VN') : '';
     const account = log.threadId ? log.threadId.split('@')[0] : null;
@@ -90,7 +91,7 @@ function LogLine({ log }) {
             )}
 
             {/* Message */}
-            <span className={`${colorCls} flex-1 break-all text-[11px] leading-relaxed`}>{log.message}</span>
+            <span className={`${colorCls} flex-1 break-all text-[11px] leading-relaxed`}>{log.message ?? ''}</span>
         </div>
     );
 }
@@ -201,11 +202,13 @@ export default function History() {
 
     const handleLogBatch = useCallback((entries) => {
         if (!Array.isArray(entries) || entries.length === 0) return;
+        const valid = entries.filter(Boolean);
+        if (valid.length === 0) return;
         setLogs(prev => {
-            const next = [...prev, ...entries];
+            const next = [...prev, ...valid];
             return next.length > LOG_WINDOW ? next.slice(-LOG_WINDOW) : next;
         });
-        setTotalLogs(t => t + entries.length);
+        setTotalLogs(t => t + valid.length);
         requestAnimationFrame(() => logEndRef.current?.scrollIntoView({ behavior: 'smooth' }));
     }, []);
 
@@ -252,7 +255,7 @@ export default function History() {
         try {
             const res = await WorkflowsService.getLogs(id, { limit: LOG_WINDOW, page: 1 });
             const data = res.data || {};
-            setLogs(data.logs || []);
+            setLogs((data.logs || []).filter(Boolean));
             setTotalLogs(data.total || 0);
             // Threads: metadata only (server da strip logs[])
             setThreads(data.threads || {});
