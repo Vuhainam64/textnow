@@ -47,6 +47,9 @@ const en = {
         minutesAgo: 'minutes ago',
         hoursAgo: 'hours ago',
         daysAgo: 'days ago',
+        viewAll: 'View all',
+        viewDetails: 'View details',
+        others: 'Others',
     },
 
     // ── Navigation ───────────────────────────────────────────────────
@@ -84,7 +87,7 @@ const en = {
 
     // ── Dashboard ────────────────────────────────────────────────────
     dashboard: {
-        title: 'Dashboard',
+        title: 'System Overview',
         subtitle: 'System activity overview',
         totalAccounts: 'Total accounts',
         activeAccounts: 'Active accounts',
@@ -92,6 +95,10 @@ const en = {
         activeProxies: 'Active proxies',
         recentHistory: 'Recent history',
         accountsByStatus: 'Accounts by status',
+        accountBreakdown: 'Account Breakdown',
+        proxyBreakdown: 'Proxy Breakdown',
+        executionHistory: 'Execution History',
+        systemInfo: 'System Information',
     },
 
     // ── Accounts ─────────────────────────────────────────────────────
@@ -108,6 +115,7 @@ const en = {
         confirmDeleteAll: 'Delete all {total} currently shown accounts?',
         searchPlaceholder: 'Search by username...',
         noAccounts: 'No accounts yet',
+        allStatuses: 'All statuses',
         group: 'Group',
         noGroup: '— No group —',
         ungrouped: 'Ungrouped',
@@ -168,6 +176,7 @@ const en = {
         checkProxy: 'Check proxy',
         checkAll: 'Check all',
         proxyGroup: 'Proxy group',
+        available: 'Available',
     },
 
     // ── Workflow ─────────────────────────────────────────────────────
@@ -199,7 +208,19 @@ const en = {
         addStartBlock: 'Please add a START block before running',
         selectAccountGroup: 'Please select an Account Group',
         noAccountsFound: 'No matching accounts found',
-        steps: '{count} Steps',
+        steps: 'steps',
+        accountSection: 'Target Accounts',
+        runParams: 'Execution Parameters',
+        newPassword: 'New password',
+        ifNeeded: 'if workflow needs it',
+        leaveEmptyIfNotNeeded: 'Leave empty if not needed...',
+        limitPlaceholder: 'Empty = run all',
+        limitHint: 'Enter a number to limit, empty = run all',
+        threads: 'Concurrent threads',
+        threadsHint: 'Threads running in parallel at the same time',
+        startupDelay: 'Startup delay per thread (seconds)',
+        startupDelayHint: 'Seconds between each thread starting',
+        ready: 'Ready',
     },
 
     // ── Tasks / Scheduler ────────────────────────────────────────────

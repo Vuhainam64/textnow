@@ -685,11 +685,18 @@ export default function Accounts() {
                 {stats.length > 0 && (
                     <div className="flex flex-wrap gap-2 animate-in fade-in slide-in-from-top-1 duration-300">
                         {stats.map(s => {
+                            const STATUS_I18N_KEY = {
+                                'active': 'active', 'inactive': 'inactive', 'banned': 'banned',
+                                'dead': 'dead', 'pending': 'pending', 'die_mail': 'die_mail',
+                                'no_mail': 'no_mail', 'captcha': 'captcha', 'Reset Error': 'reset_error', 'verified': 'verified',
+                            }
                             const config = STATUS_MAP[s._id] || { label: s._id, color: 'text-slate-400 bg-slate-500/10' }
+                            const i18nKey = STATUS_I18N_KEY[s._id]
+                            const label = i18nKey ? t(`status.${i18nKey}`) : config.label
                             return (
                                 <div key={s._id} className={`px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-2 bg-white/3`}>
                                     <span className={`w-1.5 h-1.5 rounded-full`} style={{ backgroundColor: config.color.split(' ')[0].replace('text-', '') }} />
-                                    <span className="text-xs font-medium text-slate-300">{config.label}:</span>
+                                    <span className="text-xs font-medium text-slate-300">{label}:</span>
                                     <span className="text-xs font-bold text-white">{s.count}</span>
                                 </div>
                             )
@@ -700,15 +707,15 @@ export default function Accounts() {
                 <div className="flex flex-col sm:flex-row gap-3">
                     <div className="relative flex-1">
                         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Tìm kiếm tài khoản..."
+                        <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('accounts.searchPlaceholder')}
                             className="w-full pl-9 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/40 transition-all" />
                     </div>
                     <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="min-w-[160px]">
-                        <option value="">Tất cả trạng thái</option>
-                        <option value="active">Hoạt động</option>
-                        <option value="inactive">Không kích hoạt</option>
-                        <option value="banned">Bị khoá</option>
-                        <option value="pending">Chờ xử lý</option>
+                        <option value="">{t('accounts.allStatuses')}</option>
+                        <option value="active">{t('status.active')}</option>
+                        <option value="inactive">{t('status.inactive')}</option>
+                        <option value="banned">{t('status.banned')}</option>
+                        <option value="pending">{t('status.pending')}</option>
                     </Select>
                 </div>
 
@@ -717,7 +724,13 @@ export default function Accounts() {
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="border-b border-white/5">
-                                    {['TextNow User', 'Nhóm', 'Trạng thái', 'Ngày thao tác', 'Thao tác'].map(h => (
+                                    {[
+                                        'TextNow User',
+                                        t('accounts.group'),
+                                        t('common.status'),
+                                        t('accounts.lastUpdated'),
+                                        t('common.actions'),
+                                    ].map(h => (
                                         <th key={h} className="text-left text-xs text-slate-500 font-semibold uppercase tracking-wider px-4 py-3.5">{h}</th>
                                     ))}
                                 </tr>
@@ -738,7 +751,7 @@ export default function Accounts() {
                                                 <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center">
                                                     <AlertCircle size={20} className="text-slate-600" />
                                                 </div>
-                                                Không có tài khoản nào
+                                                {t('accounts.noAccounts')}
                                             </div>
                                         </td>
                                     </tr>
@@ -757,7 +770,7 @@ export default function Accounts() {
                                                         : <span className="text-slate-600 text-xs">—</span>}
                                                 </td>
                                                 <td className="px-4 py-3.5"><StatusBadge status={acc.status} /></td>
-                                                <td className="px-4 py-3.5 text-slate-500 text-xs">{new Date(acc.updated_at).toLocaleString('vi-VN')}</td>
+                                                <td className="px-4 py-3.5 text-slate-500 text-xs">{new Date(acc.updated_at).toLocaleString()}</td>
                                                 <td className="px-4 py-3.5">
                                                     <div className="flex items-center gap-1">
                                                         <button onClick={() => setEditing(acc)}
@@ -780,7 +793,7 @@ export default function Accounts() {
 
                     {pagination.totalPages > 1 && (
                         <div className="flex items-center justify-between px-4 py-3 border-t border-white/5">
-                            <p className="text-xs text-slate-500">Trang {pagination.page} / {pagination.totalPages}</p>
+                            <p className="text-xs text-slate-500">{t('common.page')} {pagination.page} / {pagination.totalPages}</p>
                             <div className="flex gap-1">
                                 <button disabled={pagination.page <= 1} onClick={() => loadAccounts(pagination.page - 1)}
                                     className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 flex items-center justify-center text-slate-400 transition-all">

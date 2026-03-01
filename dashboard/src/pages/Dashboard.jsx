@@ -223,20 +223,20 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Account breakdown */}
                 <div className="glass rounded-2xl p-5 border border-white/5">
-                    <SectionHeader icon={Activity} title="Phân bổ tài khoản" iconColor="text-blue-400" action="Xem tất cả" onAction={() => navigate('/accounts')} />
+                    <SectionHeader icon={Activity} title={t('dashboard.accountBreakdown')} iconColor="text-blue-400" action={t('common.viewAll')} onAction={() => navigate('/accounts')} />
                     <div className="space-y-3">
-                        <StatusBar label="Hoạt động (active)" count={acc.active || 0} total={accTotal || 1} color="bg-emerald-500" textColor="text-emerald-400" />
-                        <StatusBar label="Bị khoá (banned)" count={acc.banned || 0} total={accTotal || 1} color="bg-red-500" textColor="text-red-400" />
-                        <StatusBar label="Sai mật khẩu (no_mail)" count={acc.no_mail || 0} total={accTotal || 1} color="bg-orange-500" textColor="text-orange-400" />
-                        <StatusBar label="Chờ xử lý (pending)" count={acc.pending || 0} total={accTotal || 1} color="bg-amber-500" textColor="text-amber-400" />
-                        <StatusBar label="Không kích hoạt" count={acc.inactive || 0} total={accTotal || 1} color="bg-slate-500" />
+                        <StatusBar label={`${t('status.active')}`} count={acc.active || 0} total={accTotal || 1} color="bg-emerald-500" textColor="text-emerald-400" />
+                        <StatusBar label={`${t('status.banned')}`} count={acc.banned || 0} total={accTotal || 1} color="bg-red-500" textColor="text-red-400" />
+                        <StatusBar label={`${t('status.no_mail')}`} count={acc.no_mail || 0} total={accTotal || 1} color="bg-orange-500" textColor="text-orange-400" />
+                        <StatusBar label={`${t('status.pending')}`} count={acc.pending || 0} total={accTotal || 1} color="bg-amber-500" textColor="text-amber-400" />
+                        <StatusBar label={`${t('status.inactive')}`} count={acc.inactive || 0} total={accTotal || 1} color="bg-slate-500" />
                     </div>
                     {/* Summary numbers */}
                     <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-white/5">
                         {[
-                            { label: 'Active', val: acc.active || 0, color: 'text-emerald-400' },
-                            { label: 'Banned', val: acc.banned || 0, color: 'text-red-400' },
-                            { label: 'Khác', val: accTotal - (acc.active || 0) - (acc.banned || 0), color: 'text-slate-400' },
+                            { label: t('status.active'), val: acc.active || 0, color: 'text-emerald-400' },
+                            { label: t('status.banned'), val: acc.banned || 0, color: 'text-red-400' },
+                            { label: t('common.others'), val: accTotal - (acc.active || 0) - (acc.banned || 0), color: 'text-slate-400' },
                         ].map(({ label, val, color }) => (
                             <div key={label} className="text-center">
                                 <p className={`text-xl font-bold ${color} tabular-nums`}>{val}</p>
@@ -248,17 +248,17 @@ export default function Dashboard() {
 
                 {/* Proxy breakdown */}
                 <div className="glass rounded-2xl p-5 border border-white/5">
-                    <SectionHeader icon={TrendingUp} title="Phân bổ proxy" iconColor="text-violet-400" action="Xem tất cả" onAction={() => navigate('/proxies')} />
+                    <SectionHeader icon={TrendingUp} title={t('dashboard.proxyBreakdown')} iconColor="text-violet-400" action={t('common.viewAll')} onAction={() => navigate('/proxies')} />
                     <div className="space-y-3">
-                        <StatusBar label="Hoạt động (active)" count={prx.active || 0} total={prxTotal || 1} color="bg-emerald-500" textColor="text-emerald-400" />
-                        <StatusBar label="Không kích hoạt" count={prx.inactive || 0} total={prxTotal || 1} color="bg-slate-500" />
-                        <StatusBar label="Đã chết (dead)" count={prx.dead || 0} total={prxTotal || 1} color="bg-red-500" textColor="text-red-400" />
+                        <StatusBar label={t('status.active')} count={prx.active || 0} total={prxTotal || 1} color="bg-emerald-500" textColor="text-emerald-400" />
+                        <StatusBar label={t('status.inactive')} count={prx.inactive || 0} total={prxTotal || 1} color="bg-slate-500" />
+                        <StatusBar label={t('status.dead')} count={prx.dead || 0} total={prxTotal || 1} color="bg-red-500" textColor="text-red-400" />
                     </div>
                     <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-white/5">
                         {[
-                            { label: 'Khả dụng', val: prx.active || 0, color: 'text-emerald-400' },
-                            { label: 'Inactive', val: prx.inactive || 0, color: 'text-slate-400' },
-                            { label: 'Dead', val: prx.dead || 0, color: 'text-red-400' },
+                            { label: t('proxies.available'), val: prx.active || 0, color: 'text-emerald-400' },
+                            { label: t('status.inactive'), val: prx.inactive || 0, color: 'text-slate-400' },
+                            { label: t('status.dead'), val: prx.dead || 0, color: 'text-red-400' },
                         ].map(({ label, val, color }) => (
                             <div key={label} className="text-center">
                                 <p className={`text-xl font-bold ${color} tabular-nums`}>{val}</p>
@@ -270,13 +270,13 @@ export default function Dashboard() {
 
                 {/* Recent executions */}
                 <div className="glass rounded-2xl p-5 border border-white/5">
-                    <SectionHeader icon={BarChart2} title="Lịch sử thực thi" iconColor="text-amber-400" action="Xem chi tiết" onAction={() => navigate('/history')} />
+                    <SectionHeader icon={BarChart2} title={t('dashboard.executionHistory')} iconColor="text-amber-400" action={t('common.viewDetails')} onAction={() => navigate('/history')} />
                     {execs.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-8 text-center">
                             <CircleDot size={28} className="text-slate-700 mb-2" />
-                            <p className="text-sm text-slate-600">Chưa có phiên nào chạy</p>
+                            <p className="text-sm text-slate-600">{t('history.noHistory')}</p>
                             <button onClick={() => navigate('/tasks')} className="mt-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium hover:bg-emerald-500/15 transition-all">
-                                <Play size={11} /> Chạy kịch bản
+                                <Play size={11} /> {t('workflow.startRun')}
                             </button>
                         </div>
                     ) : (

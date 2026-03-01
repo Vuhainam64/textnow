@@ -47,6 +47,9 @@ const vi = {
         minutesAgo: 'phút trước',
         hoursAgo: 'giờ trước',
         daysAgo: 'ngày trước',
+        viewAll: 'Xem tất cả',
+        viewDetails: 'Xem chi tiết',
+        others: 'Khác',
     },
 
     // ── Navigation ───────────────────────────────────────────────────
@@ -92,6 +95,10 @@ const vi = {
         activeProxies: 'Proxy hoạt động',
         recentHistory: 'Lịch sử gần đây',
         accountsByStatus: 'Tài khoản theo trạng thái',
+        accountBreakdown: 'Phân bổ tài khoản',
+        proxyBreakdown: 'Phân bổ proxy',
+        executionHistory: 'Lịch sử thực thi',
+        systemInfo: 'Thông tin hệ thống',
     },
 
     // ── Accounts ─────────────────────────────────────────────────────
@@ -108,6 +115,7 @@ const vi = {
         confirmDeleteAll: 'Xoá toàn bộ {total} tài khoản đang hiển thị?',
         searchPlaceholder: 'Tìm theo username...',
         noAccounts: 'Chưa có tài khoản nào',
+        allStatuses: 'Tất cả trạng thái',
         group: 'Nhóm',
         noGroup: '— Không có nhóm —',
         ungrouped: 'Chưa có nhóm',
@@ -168,6 +176,7 @@ const vi = {
         checkProxy: 'Kiểm tra proxy',
         checkAll: 'Kiểm tra tất cả',
         proxyGroup: 'Nhóm proxy',
+        available: 'Khả dụng',
     },
 
     // ── Workflow ─────────────────────────────────────────────────────
@@ -199,7 +208,19 @@ const vi = {
         addStartBlock: 'Vui lòng thêm khối START để khởi chạy',
         selectAccountGroup: 'Vui lòng chọn Nhóm tài khoản',
         noAccountsFound: 'Không tìm thấy tài khoản nào phù hợp',
-        steps: '{count} Bước',
+        steps: 'bước',
+        accountSection: 'Đối tượng tài khoản',
+        runParams: 'Tham số thực thi',
+        newPassword: 'Mật khẩu mới',
+        ifNeeded: 'nếu kịch bản cần',
+        leaveEmptyIfNotNeeded: 'Để trống nếu không cần...',
+        limitPlaceholder: 'Để trống = chạy tất cả',
+        limitHint: 'Nhập số để giới hạn, để trống = chạy hết',
+        threads: 'Số luồng đồng thời',
+        threadsHint: 'Luồng chạy song song cùng lúc',
+        startupDelay: 'Delay khởi động mỗi luồng (giây)',
+        startupDelayHint: 'Mỗi luồng cách nhau bao nhiêu giây',
+        ready: 'Sẵn sàng',
     },
 
     // ── Tasks / Scheduler ────────────────────────────────────────────

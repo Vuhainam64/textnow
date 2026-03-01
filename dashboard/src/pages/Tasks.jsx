@@ -194,7 +194,7 @@ export default function Tasks() {
                     ) : workflows.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-40 text-slate-600 gap-3">
                             <FileText size={28} />
-                            <p className="text-xs text-center">Chưa có kịch bản nào.<br />Nhấn <span className="text-blue-400 font-bold">+</span> để tạo mới.</p>
+                            <p className="text-xs text-center">{t('workflow.noWorkflows')}</p>
                         </div>
                     ) : workflows.map(wf => {
                         const isActive = selectedWf?._id === wf._id
@@ -211,7 +211,7 @@ export default function Tasks() {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <p className={`text-xs font-bold truncate ${isActive ? 'text-blue-300' : 'text-slate-300'}`}>{wf.name}</p>
-                                    <p className="text-[10px] text-slate-600">{wf.nodes?.length || 0} bước · {new Date(wf.updated_at).toLocaleDateString('vi-VN')}</p>
+                                    <p className="text-[10px] text-slate-600">{wf.nodes?.length || 0} {t('workflow.steps').toLowerCase()} · {new Date(wf.updated_at).toLocaleDateString()}</p>
                                 </div>
                                 {/* Actions (hover) */}
                                 <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
@@ -289,7 +289,7 @@ export default function Tasks() {
                             <section className="space-y-4">
                                 <div className="flex items-center gap-2">
                                     <ShieldCheck size={16} className="text-blue-400" />
-                                    <h3 className="text-sm font-bold text-slate-200">Đối tượng tài khoản</h3>
+                                    <h3 className="text-sm font-bold text-slate-200">{t('workflow.accountSection')}</h3>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
@@ -344,33 +344,33 @@ export default function Tasks() {
                             <section className="space-y-4">
                                 <div className="flex items-center gap-2">
                                     <Key size={16} className="text-amber-400" />
-                                    <h3 className="text-sm font-bold text-slate-200">Tham số thực thi</h3>
+                                    <h3 className="text-sm font-bold text-slate-200">{t('workflow.runParams')}</h3>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="text-xs text-slate-500 mb-2 block font-medium flex items-center gap-1.5">
-                                            <Key size={12} className="text-blue-400" /> Mật khẩu mới
-                                            <span className="text-slate-600 font-normal">(nếu kịch bản cần)</span>
+                                            <Key size={12} className="text-blue-400" /> {t('workflow.newPassword')}
+                                            <span className="text-slate-600 font-normal">({t('workflow.ifNeeded')})</span>
                                         </label>
                                         <input
                                             value={runConfig.new_password}
                                             onChange={e => setRunConfig(c => ({ ...c, new_password: e.target.value }))}
                                             className={inputCls}
-                                            placeholder="Để trống nếu không cần..."
+                                            placeholder={t('workflow.leaveEmptyIfNotNeeded')}
                                         />
                                     </div>
                                     <div>
                                         <label className="text-xs text-slate-500 mb-2 block font-medium flex items-center gap-1.5">
-                                            <Layers size={12} className="text-amber-400" /> Số tài khoản muốn chạy
+                                            <Layers size={12} className="text-amber-400" /> {t('workflow.accountLimit')}
                                         </label>
                                         <input
                                             type="number" min="0"
                                             value={runConfig.limit}
                                             onChange={e => setRunConfig(c => ({ ...c, limit: e.target.value }))}
                                             className={inputCls}
-                                            placeholder="Để trống = chạy tất cả"
+                                            placeholder={t('workflow.limitPlaceholder')}
                                         />
-                                        <p className="text-[10px] text-slate-600 mt-1.5 italic">Nhập số để giới hạn, để trống = chạy hết</p>
+                                        <p className="text-[10px] text-slate-600 mt-1.5 italic">{t('workflow.limitHint')}</p>
                                     </div>
                                 </div>
 
@@ -378,7 +378,7 @@ export default function Tasks() {
                                 <div className="grid grid-cols-2 gap-4 pt-1">
                                     <div>
                                         <label className="text-xs text-slate-500 mb-2 block font-medium flex items-center gap-1.5">
-                                            <Layers size={12} className="text-purple-400" /> Số luồng chạy đồng thời
+                                            <Layers size={12} className="text-purple-400" /> {t('workflow.threads')}
                                         </label>
                                         <input
                                             type="number" min="1" max="50"
@@ -386,11 +386,11 @@ export default function Tasks() {
                                             onChange={e => setRunConfig(c => ({ ...c, threads: e.target.value }))}
                                             className={inputCls}
                                         />
-                                        <p className="text-[10px] text-slate-600 mt-1.5 italic">Luồng chạy song song cùng lúc</p>
+                                        <p className="text-[10px] text-slate-600 mt-1.5 italic">{t('workflow.threadsHint')}</p>
                                     </div>
                                     <div>
                                         <label className="text-xs text-slate-500 mb-2 block font-medium flex items-center gap-1.5">
-                                            <RefreshCw size={12} className="text-teal-400" /> Delay khởi động mỗi luồng (giây)
+                                            <RefreshCw size={12} className="text-teal-400" /> {t('workflow.startupDelay')}
                                         </label>
                                         <input
                                             type="number" min="0" max="60"
@@ -398,7 +398,7 @@ export default function Tasks() {
                                             onChange={e => setRunConfig(c => ({ ...c, startup_delay: e.target.value }))}
                                             className={inputCls}
                                         />
-                                        <p className="text-[10px] text-slate-600 mt-1.5 italic">Mỗi luồng cách nhau bao nhiêu giây</p>
+                                        <p className="text-[10px] text-slate-600 mt-1.5 italic">{t('workflow.startupDelayHint')}</p>
                                     </div>
                                 </div>
                             </section>
@@ -407,13 +407,13 @@ export default function Tasks() {
                         {/* Status bar */}
                         <div className="px-8 py-3 border-t border-white/5 bg-white/[0.01] flex items-center justify-between">
                             <div className="flex items-center gap-4 text-xs text-slate-500">
-                                <span className="flex items-center gap-1"><Layers size={12} /> {selectedWf.nodes?.length || 0} bước</span>
-                                <span className="flex items-center gap-1"><Filter size={12} /> {runConfig.target_statuses.length} trạng thái</span>
-                                <span className="flex items-center gap-1"><Calendar size={12} /> Cập nhật {new Date(selectedWf.updated_at).toLocaleDateString('vi-VN')}</span>
+                                <span className="flex items-center gap-1"><Layers size={12} /> {selectedWf.nodes?.length || 0} {t('workflow.steps')}</span>
+                                <span className="flex items-center gap-1"><Filter size={12} /> {runConfig.target_statuses.length} {t('common.status').toLowerCase()}</span>
+                                <span className="flex items-center gap-1"><Calendar size={12} /> {new Date(selectedWf.updated_at).toLocaleDateString()}</span>
                             </div>
                             <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                Sẵn sàng
+                                {t('workflow.ready')}
                             </div>
                         </div>
                     </>
