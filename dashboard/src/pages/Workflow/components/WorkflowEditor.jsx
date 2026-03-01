@@ -964,9 +964,16 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                         <Background color="#1e2535" gap={25} size={1} variant="dots" />
                         <Controls className="!bg-[#161b27] !border-white/5 !shadow-2xl fill-white" />
                         <MiniMap
-                            className="!bg-[#161b27] !border-white/5 !rounded-xl overflow-hidden shadow-2xl"
-                            maskColor="rgba(0, 0, 0, 0.4)"
+                            style={{
+                                background: '#161b27',
+                                border: '1px solid rgba(255,255,255,0.05)',
+                                borderRadius: '12px',
+                                width: 200,
+                                height: 140,
+                            }}
+                            maskColor="rgba(0, 0, 0, 0.5)"
                             nodeColor={n => n.type === 'sourceNode' ? '#10b981' : '#3b82f6'}
+                            nodeStrokeWidth={3}
                             zoomable
                             pannable
                         />
