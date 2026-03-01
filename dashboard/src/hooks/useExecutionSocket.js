@@ -6,8 +6,27 @@ const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://
 let _socket = null;
 
 function getSocket() {
-    if (!_socket) {
-        _socket = io(SOCKET_URL, { transports: ['websocket'] });
+    if (!_socket || _socket.disconnected) {
+        // Cho phep ca 2 transport: polling (fallback) + websocket (upgrade)
+        // Tranh truong hop WebSocket bi chan (firewall, proxy CORS upgrade fail)
+        _socket = io(SOCKET_URL, {
+            transports: ['polling', 'websocket'],  // polling truoc de dam bao ket noi, sau do upgrade len WS
+            reconnection: true,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            timeout: 10000,
+        });
+
+        _socket.on('connect', () => {
+            console.log('[Socket] ✅ Connected:', _socket.id);
+        });
+        _socket.on('disconnect', (reason) => {
+            console.warn('[Socket] ❌ Disconnected:', reason);
+        });
+        _socket.on('connect_error', (err) => {
+            console.warn('[Socket] ⚠️ Connect error:', err.message);
+        });
     }
     return _socket;
 }
@@ -24,33 +43,46 @@ function getSocket() {
  */
 export function useExecutionSocket(executionId, {
     onLogBatch,
-    onLog,          // backward compat — gọi onLog cho từng entry trong batch
+    onLog,          // backward compat
     onThreadUpdate, // backward compat
     onThreadMeta,
     onStatusChange,
     onNodeActive,
 } = {}) {
-    const socket = useRef(getSocket());
+    const socket = useRef(null);
+
+    // Init socket once
+    if (!socket.current) {
+        socket.current = getSocket();
+    }
 
     useEffect(() => {
         if (!executionId) return;
         const s = socket.current;
 
-        s.emit('join-execution', executionId);
+        const joinRoom = () => {
+            s.emit('join-execution', executionId);
+        };
 
-        // Nhận batch logs (mới) — mỗi event là mảng log entries
+        // Join ngay nếu đã connected, hoặc chờ connect
+        if (s.connected) {
+            joinRoom();
+        } else {
+            s.once('connect', joinRoom);
+        }
+
+        // Re-join khi reconnect (server reset → phải join lại room)
+        s.on('connect', joinRoom);
+
         const handleLogBatch = (entries) => {
             if (Array.isArray(entries)) {
                 onLogBatch?.(entries);
-                // Backward compat: gọi onLog cho mỗi entry
                 if (onLog) entries.forEach(e => onLog(e));
             }
         };
 
-        // Nhận thread metadata (mới — không có logs[])
         const handleThreadMeta = (data) => {
             onThreadMeta?.(data);
-            // Backward compat: gọi onThreadUpdate nếu có
             if (onThreadUpdate && data?.meta) {
                 onThreadUpdate({ threadId: data.threadId, thread: data.meta });
             }
@@ -65,6 +97,7 @@ export function useExecutionSocket(executionId, {
         s.on('workflow-node-active', handleActive);
 
         return () => {
+            s.off('connect', joinRoom);
             s.off('workflow-log-batch', handleLogBatch);
             s.off('workflow-thread-meta', handleThreadMeta);
             s.off('workflow-status', handleStatus);
