@@ -1,54 +1,68 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Check, Plus, X } from 'lucide-react'
 import { GROUP_COLORS, inputCls } from '../lib/ui'
 
 // Preset labels với màu mặc định
 const PRESET_LABELS = [
-    { text: 'VER', color: '#10b981' }, // emerald
-    { text: 'RESET', color: '#3b82f6' }, // blue
-    { text: 'CHECK LIVE', color: '#f59e0b' }, // amber
-    { text: 'VERIFY MAIL', color: '#a855f7' }, // purple
-    { text: 'IMPORT', color: '#06b6d4' }, // cyan
-    { text: 'SPAM', color: '#ef4444' }, // red
-    { text: 'MAIN', color: '#6366f1' }, // indigo
+    { text: 'VER', color: '#10b981' },
+    { text: 'RESET', color: '#3b82f6' },
+    { text: 'CHECK LIVE', color: '#f59e0b' },
+    { text: 'VERIFY MAIL', color: '#a855f7' },
+    { text: 'IMPORT', color: '#06b6d4' },
+    { text: 'SPAM', color: '#ef4444' },
+    { text: 'MAIN', color: '#6366f1' },
 ]
 
-// Bảng màu chọn nhanh cho label
+// Bảng màu chọn nhanh
 const LABEL_PALETTE = [
     '#10b981', '#3b82f6', '#f59e0b', '#a855f7',
     '#06b6d4', '#ef4444', '#6366f1', '#f97316',
     '#ec4899', '#84cc16', '#14b8a6', '#64748b',
 ]
 
-function LabelBadge({ label, onRemove, onColorChange }) {
-    const [showPicker, setShowPicker] = useState(false)
+// Mini color picker inline (không popup, không bị clip)
+function ColorDots({ selected, onChange }) {
     return (
-        <span className="relative flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all"
-            style={{ backgroundColor: label.color + '22', borderColor: label.color + '55', color: label.color }}>
-            {/* Swatch click mở color picker */}
-            <button type="button" onClick={() => setShowPicker(p => !p)}
-                className="w-2.5 h-2.5 rounded-full flex-shrink-0 ring-1 ring-white/20 transition-transform hover:scale-125"
-                style={{ backgroundColor: label.color }}
-                title="Đổi màu" />
-            {label.text}
-            {onRemove && (
-                <button type="button" onClick={onRemove} className="ml-0.5 opacity-60 hover:opacity-100 transition-opacity">
-                    <X size={9} />
+        <div className="flex flex-wrap gap-1 p-2 bg-slate-800 border border-white/10 rounded-xl mt-1">
+            {LABEL_PALETTE.map(c => (
+                <button key={c} type="button" onClick={() => onChange(c)}
+                    className="w-5 h-5 rounded-full flex items-center justify-center transition-all hover:scale-110 flex-shrink-0"
+                    style={{ backgroundColor: c, outline: selected === c ? `2px solid ${c}` : '2px solid transparent', outlineOffset: 2 }}>
+                    {selected === c && <Check size={9} className="text-white" />}
                 </button>
-            )}
-            {showPicker && (
-                <div className="absolute top-full left-0 mt-1.5 z-50 bg-slate-900 border border-white/10 rounded-xl p-2 shadow-2xl"
-                    onClick={e => e.stopPropagation()}>
-                    <div className="grid grid-cols-6 gap-1">
-                        {LABEL_PALETTE.map(c => (
-                            <button key={c} type="button"
-                                onClick={() => { onColorChange?.(c); setShowPicker(false) }}
-                                className="w-5 h-5 rounded-full ring-2 ring-offset-1 ring-offset-slate-900 transition-all hover:scale-110"
-                                style={{ backgroundColor: c, ringColor: label.color === c ? c : 'transparent' }}>
-                                {label.color === c && <Check size={10} className="text-white mx-auto" />}
-                            </button>
-                        ))}
-                    </div>
+            ))}
+        </div>
+    )
+}
+
+function LabelBadge({ label, onRemove, onColorChange }) {
+    const [open, setOpen] = useState(false)
+    const ref = useRef(null)
+
+    useEffect(() => {
+        const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+        document.addEventListener('mousedown', handler)
+        return () => document.removeEventListener('mousedown', handler)
+    }, [])
+
+    return (
+        <span ref={ref} className="relative inline-flex flex-col">
+            <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all"
+                style={{ backgroundColor: label.color + '22', borderColor: label.color + '55', color: label.color }}>
+                <button type="button" onClick={() => setOpen(p => !p)}
+                    className="w-2.5 h-2.5 rounded-full flex-shrink-0 transition-transform hover:scale-125"
+                    style={{ backgroundColor: label.color }}
+                    title="Đổi màu" />
+                {label.text}
+                {onRemove && (
+                    <button type="button" onClick={onRemove} className="ml-0.5 opacity-60 hover:opacity-100">
+                        <X size={9} />
+                    </button>
+                )}
+            </span>
+            {open && (
+                <div className="absolute top-full left-0 mt-1 z-50" onClick={e => e.stopPropagation()}>
+                    <ColorDots selected={label.color} onChange={(c) => { onColorChange?.(c); setOpen(false) }} />
                 </div>
             )}
         </span>
@@ -95,6 +109,7 @@ export default function GroupForm({ initial, onSave, onClose }) {
         if (!val || form.labels.some(l => l.text === val)) { setCustomInput(''); return }
         setForm(f => ({ ...f, labels: [...f.labels, { text: val, color: customColor }] }))
         setCustomInput('')
+        setShowCustomPalette(false)
         inputRef.current?.focus()
     }
 
@@ -161,24 +176,10 @@ export default function GroupForm({ initial, onSave, onClose }) {
                 {/* Thêm custom label */}
                 <div className="flex gap-1.5 items-center">
                     {/* Color swatch for new custom */}
-                    <div className="relative">
-                        <button type="button" onClick={() => setShowCustomPalette(p => !p)}
-                            className="w-7 h-7 rounded-lg border border-white/20 flex-shrink-0 flex items-center justify-center transition-all hover:scale-110"
-                            style={{ backgroundColor: customColor }}
-                            title="Chọn màu" />
-                        {showCustomPalette && (
-                            <div className="absolute top-full mt-1 z-50 bg-slate-900 border border-white/10 rounded-xl p-2 shadow-2xl">
-                                <div className="grid grid-cols-6 gap-1">
-                                    {LABEL_PALETTE.map(c => (
-                                        <button key={c} type="button"
-                                            onClick={() => { setCustomColor(c); setShowCustomPalette(false) }}
-                                            className="w-5 h-5 rounded-full ring-2 ring-offset-1 ring-offset-slate-900 hover:scale-110 transition-all"
-                                            style={{ backgroundColor: c, ringColor: customColor === c ? c : 'transparent' }} />
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                    <button type="button" onClick={() => setShowCustomPalette(p => !p)}
+                        className="w-7 h-7 rounded-lg border-2 border-white/20 flex-shrink-0 transition-all hover:scale-110"
+                        style={{ backgroundColor: customColor }}
+                        title="Chọn màu nhãn" />
                     <input
                         ref={inputRef}
                         value={customInput}
@@ -192,15 +193,26 @@ export default function GroupForm({ initial, onSave, onClose }) {
                         <Plus size={13} />
                     </button>
                 </div>
+
+                {/* Custom label color picker — inline, không popup */}
+                {showCustomPalette && (
+                    <ColorDots selected={customColor} onChange={(c) => setCustomColor(c)} />
+                )}
             </div>
 
+            {/* Màu nhóm */}
             <div>
                 <label className="text-xs text-slate-500 mb-1.5 block font-medium">Màu nhóm</label>
                 <div className="flex gap-2 flex-wrap">
                     {GROUP_COLORS.map(c => (
                         <button key={c} type="button" onClick={() => setForm(f => ({ ...f, color: c }))}
-                            className="w-7 h-7 rounded-full ring-2 ring-offset-2 ring-offset-slate-900 transition-all flex items-center justify-center"
-                            style={{ backgroundColor: c, ringColor: form.color === c ? c : 'transparent' }}>
+                            className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                            style={{
+                                backgroundColor: c,
+                                outline: form.color === c ? `3px solid ${c}` : '3px solid transparent',
+                                outlineOffset: 3,
+                                boxShadow: form.color === c ? `0 0 0 1px #0f1117` : 'none',
+                            }}>
                             {form.color === c && <Check size={12} className="text-white" />}
                         </button>
                     ))}
