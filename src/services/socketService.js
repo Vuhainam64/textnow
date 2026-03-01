@@ -1,4 +1,5 @@
 import { Server } from 'socket.io';
+import WorkflowEngine from './workflowEngine.js';
 
 class SocketService {
     constructor() {
@@ -19,6 +20,18 @@ class SocketService {
             socket.on('join-execution', (executionId) => {
                 socket.join(executionId);
                 console.log(`[Socket] 👤 Client ${socket.id} joined execution: ${executionId}`);
+
+                // Khi client rejoin, emit lại trạng thái hiện tại ngay
+                const exec = WorkflowEngine.activeExecutions.get(executionId);
+                if (exec) {
+                    // Emit execution status hiện tại
+                    socket.emit('workflow-status', { status: exec.status });
+
+                    // Emit node đang active (nếu có) — giúp client thấy lại khối đang chạy
+                    if (exec.currentNodeId && (exec.status === 'running' || exec.status === 'stopping')) {
+                        socket.emit('workflow-node-active', { nodeId: exec.currentNodeId });
+                    }
+                }
             });
 
             socket.on('disconnect', () => {

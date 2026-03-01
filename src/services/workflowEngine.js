@@ -382,6 +382,8 @@ class WorkflowEngine {
 
         // Chỉ emit node-active khi single thread (không spam khi multi-thread)
         if (!isMultiThread) {
+            const exec = this.activeExecutions.get(executionId);
+            if (exec) exec.currentNodeId = node.id;   // lưu để emit lại khi client rejoin
             socketService.to(executionId).emit('workflow-node-active', { nodeId: node.id });
         }
 
