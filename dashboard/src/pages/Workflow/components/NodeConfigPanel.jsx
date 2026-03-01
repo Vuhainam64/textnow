@@ -95,6 +95,7 @@ export default function NodeConfigPanel({
                                                 options={[
                                                     { value: 'active', label: 'Hoạt động' },
                                                     { value: 'verified', label: 'Đã xác thực' },
+                                                    { value: 'captcha', label: 'Lỗi Captcha' },
                                                     { value: 'die_mail', label: 'Die Mail' },
                                                     { value: 'no_mail', label: 'No Mail' },
                                                     { value: 'Reset Error', label: 'Lỗi Reset' },
