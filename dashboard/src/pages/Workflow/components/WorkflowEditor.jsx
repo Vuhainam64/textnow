@@ -175,7 +175,6 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
 
     const [accountGroups, setAccountGroups] = useState([]);
     const [proxyGroups, setProxyGroups] = useState([]);
-    const [statusCounts, setStatusCounts] = useState({});  // { active: 5, inactive: 3, ... }
 
     const reactFlowWrapper = useRef(null);
     const logContainerRef = useRef(null);
@@ -444,13 +443,13 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
     };
 
     const fetchStatusCounts = async (groupId) => {
-        if (!groupId) { setStatusCounts({}); return; }
+        if (!groupId) { setRunConfig(c => ({ ...c, _statusCounts: {} })); return; }
         try {
             const res = await AccountsService.getStats({ group_id: groupId });
             const raw = res.data?.data?.stats || [];
             const map = {};
             raw.forEach(s => { map[s._id] = s.count; });
-            setStatusCounts(map);
+            setRunConfig(c => ({ ...c, _statusCounts: map }));
         } catch { /* ignore */ }
     };
 
@@ -1094,9 +1093,9 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                                                     }`}
                                             >
                                                 {statusInfo?.label || s}
-                                                {statusCounts[s] !== undefined && (
+                                                {(runConfig._statusCounts?.[s] !== undefined) && (
                                                     <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${checked ? 'bg-black/20' : 'bg-white/10'
-                                                        }`}>{statusCounts[s]}</span>
+                                                        }`}>{runConfig._statusCounts[s]}</span>
                                                 )}
                                             </button>
                                         );
