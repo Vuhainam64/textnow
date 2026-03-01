@@ -27,6 +27,11 @@ const accountGroupSchema = new mongoose.Schema(
             type: String,
             default: '#3b82f6', // blue-500
         },
+        labels: {
+            // Nhãn mục đích: VER, RESET, CHECK LIVE, hoặc tuỳ chỉnh
+            type: [String],
+            default: [],
+        },
     },
     {
         timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },

@@ -550,26 +550,39 @@ export default function Accounts() {
                 {groups.length > 0 && <div className="border-t border-white/5 my-1" />}
 
                 {groups.map(g => (
-                    <div key={g._id} className={`group/item relative flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all cursor-pointer
+                    <div key={g._id} className={`group/item relative flex flex-col px-3 py-2 rounded-xl text-sm transition-all cursor-pointer
                         ${selectedGroup === g._id ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
                         onClick={() => setSelectedGroup(g._id)}>
-                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: g.color }} />
-                        <span className="flex-1 truncate text-sm">{g.name}</span>
-                        <span className="text-xs text-slate-500 font-medium group-hover/item:hidden">{g.account_count}</span>
-                        <div className="hidden group-hover/item:flex items-center gap-0.5 absolute right-2">
-                            <button onClick={e => { e.stopPropagation(); setEditingGroup(g) }}
-                                className="w-6 h-6 rounded-md hover:bg-blue-500/20 hover:text-blue-400 flex items-center justify-center transition-all" title="Sửa nhóm">
-                                <Pencil size={11} />
-                            </button>
-                            <button onClick={e => { e.stopPropagation(); setClearMembersTarget(g) }}
-                                className="w-6 h-6 rounded-md hover:bg-orange-500/20 hover:text-orange-400 flex items-center justify-center transition-all" title="Xóa toàn bộ tài khoản">
-                                <Trash2 size={11} />
-                            </button>
-                            <button onClick={e => { e.stopPropagation(); setDeleteGroupMode('ungroup'); setDeleteGroupTarget(g) }}
-                                className="w-6 h-6 rounded-md hover:bg-red-500/20 hover:text-red-400 flex items-center justify-center transition-all" title="Xóa nhóm">
-                                <X size={11} />
-                            </button>
+                        {/* Row: dot + name + count/actions */}
+                        <div className="flex items-center gap-2.5">
+                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: g.color }} />
+                            <span className="flex-1 truncate text-sm">{g.name}</span>
+                            <span className="text-xs text-slate-500 font-medium group-hover/item:hidden">{g.account_count}</span>
+                            <div className="hidden group-hover/item:flex items-center gap-0.5 absolute right-2 top-2">
+                                <button onClick={e => { e.stopPropagation(); setEditingGroup(g) }}
+                                    className="w-6 h-6 rounded-md hover:bg-blue-500/20 hover:text-blue-400 flex items-center justify-center transition-all" title="Sửa nhóm">
+                                    <Pencil size={11} />
+                                </button>
+                                <button onClick={e => { e.stopPropagation(); setClearMembersTarget(g) }}
+                                    className="w-6 h-6 rounded-md hover:bg-orange-500/20 hover:text-orange-400 flex items-center justify-center transition-all" title="Xóa toàn bộ tài khoản">
+                                    <Trash2 size={11} />
+                                </button>
+                                <button onClick={e => { e.stopPropagation(); setDeleteGroupMode('ungroup'); setDeleteGroupTarget(g) }}
+                                    className="w-6 h-6 rounded-md hover:bg-red-500/20 hover:text-red-400 flex items-center justify-center transition-all" title="Xóa nhóm">
+                                    <X size={11} />
+                                </button>
+                            </div>
                         </div>
+                        {/* Labels */}
+                        {g.labels?.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1 ml-5">
+                                {g.labels.map(lbl => (
+                                    <span key={lbl} className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-white/8 text-slate-400 border border-white/10">
+                                        {lbl}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 ))}
             </aside>
