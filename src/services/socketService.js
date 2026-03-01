@@ -30,6 +30,11 @@ class SocketService {
                 // Khi client rejoin, emit lai trang thai hien tai ngay
                 const exec = this._getExecution?.(executionId);
                 if (exec) {
+                    // Replay toan bo logs tu ring-buffer (de client khong miss log)
+                    if (exec.logs && exec.logs.length > 0) {
+                        socket.emit('workflow-log-batch', exec.logs);
+                    }
+
                     // Emit execution status hien tai
                     socket.emit('workflow-status', { status: exec.status });
 

@@ -1064,7 +1064,7 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                             <div>
                                 <label className="text-xs font-bold text-slate-500 uppercase block mb-2 pl-1">Trạng thái tài khoản cần xử lý</label>
                                 <div className="flex flex-wrap gap-2">
-                                    {['active', 'inactive', 'pending', 'no_mail', 'die_mail', 'Reset Error'].map(s => {
+                                    {['active', 'inactive', 'pending', 'captcha', 'no_mail', 'die_mail', 'Reset Error', 'verified', 'banned'].map(s => {
                                         const checked = runConfig.target_statuses.includes(s);
                                         const statusInfo = STATUS_MAP[s];
                                         return (
