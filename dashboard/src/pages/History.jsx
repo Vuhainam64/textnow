@@ -25,37 +25,58 @@ const THREAD_STATUS = {
     error: { label: 'Lỗi', color: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20', Icon: XCircle, spin: false },
 };
 
-const LOG_COLORS = {
-    error: 'text-rose-400',
-    warning: 'text-amber-400',
-    success: 'text-emerald-400',
-    default: 'text-slate-300',
-    info: 'text-slate-300',
-};
+// Account color palette (consistent per account name)
+const ACCOUNT_COLORS = [
+    { pill: 'bg-blue-500/15 text-blue-300 border-blue-500/25', dot: 'bg-blue-400' },
+    { pill: 'bg-violet-500/15 text-violet-300 border-violet-500/25', dot: 'bg-violet-400' },
+    { pill: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25', dot: 'bg-emerald-400' },
+    { pill: 'bg-amber-500/15 text-amber-300 border-amber-500/25', dot: 'bg-amber-400' },
+    { pill: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/25', dot: 'bg-cyan-400' },
+    { pill: 'bg-pink-500/15 text-pink-300 border-pink-500/25', dot: 'bg-pink-400' },
+    { pill: 'bg-orange-500/15 text-orange-300 border-orange-500/25', dot: 'bg-orange-400' },
+    { pill: 'bg-teal-500/15 text-teal-300 border-teal-500/25', dot: 'bg-teal-400' },
+];
 
-function duration(start, end) {
-    if (!start) return '—';
-    const ms = new Date(end || Date.now()) - new Date(start);
-    const s = Math.floor(ms / 1000);
-    if (s < 60) return `${s}s`;
-    return `${Math.floor(s / 60)}m ${s % 60}s`;
+function getAccountColor(name, colorMap) {
+    if (!name) return null;
+    if (!colorMap[name]) {
+        colorMap[name] = ACCOUNT_COLORS[Object.keys(colorMap).length % ACCOUNT_COLORS.length];
+    }
+    return colorMap[name];
 }
+
+// Shared color map (module-level để stable giữa rerenders)
+const accountColorCache = {};
 
 function LogLine({ log }) {
     const colorCls = LOG_COLORS[log.type] || LOG_COLORS.default;
     const time = log.timestamp ? new Date(log.timestamp).toLocaleTimeString('vi-VN') : '';
+    const account = log.threadId ? log.threadId.split('@')[0] : null;
+    const acColor = account ? getAccountColor(account, accountColorCache) : null;
+
     return (
-        <div className="flex gap-3 hover:bg-white/[0.025] rounded px-2 py-px -mx-2 group">
-            <span className="text-slate-700 shrink-0 text-[10px] mt-0.5 pt-px w-16">{time}</span>
-            {log.threadId && (
-                <span className="text-[10px] text-slate-600 shrink-0 font-mono truncate max-w-[80px]" title={log.threadId}>
-                    [{log.threadId.split('@')[0]}]
+        <div className="flex gap-2 hover:bg-white/[0.025] rounded-lg px-2 py-1 -mx-2 group items-start">
+            {/* Time */}
+            <span className="text-slate-700 shrink-0 text-[10px] pt-px w-14 font-mono">{time}</span>
+
+            {/* Account badge */}
+            {account ? (
+                <span
+                    className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md border font-mono max-w-[120px] truncate ${acColor?.pill}`}
+                    title={log.threadId}
+                >
+                    {account}
                 </span>
+            ) : (
+                <span className="shrink-0 w-[80px]" />
             )}
-            <span className={`${colorCls} flex-1 break-all`}>{log.message}</span>
+
+            {/* Message */}
+            <span className={`${colorCls} flex-1 break-all text-[11px] leading-relaxed`}>{log.message}</span>
         </div>
     );
 }
+
 
 // ─── Thread Card ──────────────────────────────────────────────────────────────
 function ThreadCard({ thread }) {
@@ -116,6 +137,7 @@ export default function History() {
     const [logsLoading, setLogsLoading] = useState(false);
     const [stopping, setStopping] = useState(false);
     const [stoppingAll, setStoppingAll] = useState(false);
+    const [filterAccount, setFilterAccount] = useState(null); // filter log by account
     const logEndRef = useRef(null);
     const listPollRef = useRef(null);
 
@@ -221,6 +243,7 @@ export default function History() {
         if (selectedId) {
             setLogs([]);
             setThreads({});
+            setFilterAccount(null);
             loadDetail(selectedId);
         }
     }, [selectedId, loadDetail]);
@@ -455,26 +478,64 @@ export default function History() {
 
                         {/* ── Content area ── */}
                         {viewMode === 'log' ? (
-                            /* ─ LOG VIEW ─ */
-                            <div className="flex-1 overflow-y-auto px-4 py-4 font-mono text-[12px] leading-relaxed bg-[#090c12] scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
-                                {logsLoading && logs.length === 0 ? (
-                                    <div className="flex items-center gap-2 text-slate-600 p-4">
-                                        <Loader2 size={14} className="animate-spin" /> Đang tải logs...
-                                    </div>
-                                ) : logs.length === 0 ? (
-                                    <p className="text-slate-700 italic p-4">Chưa có log nào.</p>
-                                ) : (
-                                    <div className="space-y-0.5">
-                                        {logs.map((log, i) => <LogLine key={log.id || i} log={log} />)}
-                                    </div>
-                                )}
-                                {isRunning && (
-                                    <div className="flex items-center gap-2 mt-2 text-blue-400 px-2">
-                                        <span className="animate-pulse text-sm">▋</span>
-                                        <span className="text-[11px]">Đang chạy...</span>
-                                    </div>
-                                )}
-                                <div ref={logEndRef} />
+                            /* ─ LOG VIEW with account filter ─ */
+                            <div className="flex-1 flex flex-col overflow-hidden">
+                                {/* Account filter bar - chỉ hiện khi có > 1 account */}
+                                {(() => {
+                                    const accounts = [...new Set(logs.filter(l => l.threadId).map(l => l.threadId.split('@')[0]))];
+                                    return accounts.length > 1 ? (
+                                        <div className="px-4 py-2 border-b border-white/5 bg-black/10 flex items-center gap-2 flex-wrap shrink-0">
+                                            <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider shrink-0">Lọc:</span>
+                                            <button
+                                                onClick={() => setFilterAccount(null)}
+                                                className={`text-[10px] px-2 py-0.5 rounded-md font-bold border transition-all ${!filterAccount
+                                                    ? 'bg-blue-600/30 text-blue-300 border-blue-500/40'
+                                                    : 'text-slate-500 border-white/10 hover:border-white/20'
+                                                    }`}
+                                            >
+                                                Tất cả ({logs.length})
+                                            </button>
+                                            {accounts.map(acc => {
+                                                const acColor = getAccountColor(acc, accountColorCache);
+                                                const count = logs.filter(l => l.threadId?.startsWith(acc)).length;
+                                                return (
+                                                    <button
+                                                        key={acc}
+                                                        onClick={() => setFilterAccount(f => f === acc ? null : acc)}
+                                                        className={`text-[10px] px-2 py-0.5 rounded-md font-bold border transition-all ${filterAccount === acc ? acColor?.pill : 'text-slate-500 border-white/10 hover:border-white/20'
+                                                            }`}
+                                                    >
+                                                        {acc} ({count})
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : null;
+                                })()}
+                                {/* Log list */}
+                                <div className="flex-1 overflow-y-auto px-4 py-3 font-mono text-[12px] leading-relaxed bg-[#090c12] scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+                                    {logsLoading && logs.length === 0 ? (
+                                        <div className="flex items-center gap-2 text-slate-600 p-4">
+                                            <Loader2 size={14} className="animate-spin" /> Đang tải logs...
+                                        </div>
+                                    ) : logs.length === 0 ? (
+                                        <p className="text-slate-700 italic p-4">Chưa có log nào.</p>
+                                    ) : (
+                                        <div className="space-y-0.5">
+                                            {logs
+                                                .filter(l => !filterAccount || l.threadId?.startsWith(filterAccount))
+                                                .map((log, i) => <LogLine key={log.id || i} log={log} />)
+                                            }
+                                        </div>
+                                    )}
+                                    {isRunning && (
+                                        <div className="flex items-center gap-2 mt-2 text-blue-400 px-2">
+                                            <span className="animate-pulse text-sm">▋</span>
+                                            <span className="text-[11px]">Đang chạy...</span>
+                                        </div>
+                                    )}
+                                    <div ref={logEndRef} />
+                                </div>
                             </div>
                         ) : viewMode === 'error' ? (
                             /* ─ ERROR VIEW ─ */
