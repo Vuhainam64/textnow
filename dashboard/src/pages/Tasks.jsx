@@ -13,6 +13,7 @@ import ConfirmModal from '../components/ConfirmModal'
 import { inputCls, STATUS_MAP } from '../lib/ui'
 import { showToast } from '../components/Toast'
 import WorkflowBuilder from './Workflow'
+import { useT } from '../lib/i18n'
 
 // ─── Default run config ────────────────────────────────────────────────────────
 const defaultRunConfig = () => ({
@@ -26,6 +27,7 @@ const defaultRunConfig = () => ({
 })
 
 export default function Tasks() {
+    const t = useT()
     const navigate = useNavigate()
     const [view, setView] = useState('tasks') // 'tasks' | 'editor'
     const [editingWorkflow, setEditingWorkflow] = useState(null)
@@ -173,8 +175,8 @@ export default function Tasks() {
             <aside className="w-72 flex-shrink-0 border-r border-white/5 flex flex-col bg-white/[0.01]">
                 <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
                     <div>
-                        <h2 className="text-sm font-bold text-slate-200 uppercase tracking-widest">Kịch bản</h2>
-                        <p className="text-[10px] text-slate-600 mt-0.5">{workflows.length} quy trình</p>
+                        <h2 className="text-sm font-bold text-slate-200 uppercase tracking-widest">{t('nav.workflow')}</h2>
+                        <p className="text-[10px] text-slate-600 mt-0.5">{workflows.length} {t('tasks.workflow').toLowerCase()}</p>
                     </div>
                     <button
                         onClick={() => setShowCreateModal(true)}
@@ -258,7 +260,7 @@ export default function Tasks() {
                             <div>
                                 <div className="flex items-center gap-2 text-blue-400 mb-1">
                                     <Settings2 size={14} />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest">Cấu hình chạy</span>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest">{t('workflow.runConfig')}</span>
                                 </div>
                                 <h1 className="text-xl font-bold text-white">{selectedWf.name}</h1>
                             </div>
@@ -267,7 +269,7 @@ export default function Tasks() {
                                     onClick={() => { setEditingWorkflow(selectedWf); setView('editor') }}
                                     className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-slate-300 hover:bg-white/10 transition-all"
                                 >
-                                    <Edit3 size={13} /> Mở trình thiết kế
+                                    <Edit3 size={13} /> {t('workflow.openEditor')}
                                 </button>
                                 <button
                                     onClick={handleRun}
@@ -275,7 +277,7 @@ export default function Tasks() {
                                     className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-xl shadow-blue-500/20 active:scale-95 transition-all disabled:opacity-50"
                                 >
                                     {running ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} fill="white" />}
-                                    {running ? 'ĐANG CHẠY...' : 'CHẠY NGAY'}
+                                    {running ? t('workflow.running').toUpperCase() : t('workflow.startRun').toUpperCase()}
                                 </button>
                             </div>
                         </div>
@@ -291,7 +293,7 @@ export default function Tasks() {
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="text-xs text-slate-500 mb-2 block font-medium">Nhóm tài khoản <span className="text-rose-500">*</span></label>
+                                        <label className="text-xs text-slate-500 mb-2 block font-medium">{t('workflow.accountGroup')} <span className="text-rose-500">*</span></label>
                                         <Select
                                             options={accountGroups.map(g => ({ value: g._id, label: `${g.name} (${g.account_count || 0})` }))}
                                             value={runConfig.account_group_id}
@@ -299,7 +301,7 @@ export default function Tasks() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="text-xs text-slate-500 mb-2 block font-medium">Nhóm Proxy <span className="text-slate-600">(tuỳ chọn)</span></label>
+                                        <label className="text-xs text-slate-500 mb-2 block font-medium">{t('workflow.proxyGroup')} <span className="text-slate-600">({t('common.save').slice(0, 3) === 'Lưu' ? 'tuỳ chọn' : 'optional'})</span></label>
                                         <Select
                                             options={[{ value: '', label: '— Không dùng proxy —' }, ...proxyGroups.map(g => ({ value: g._id, label: g.name }))]}
                                             value={runConfig.proxy_group_id}
@@ -310,7 +312,7 @@ export default function Tasks() {
 
                                 {/* Status filters */}
                                 <div>
-                                    <label className="text-xs text-slate-500 mb-2 block font-medium">Trạng thái tài khoản cần xử lý</label>
+                                    <label className="text-xs text-slate-500 mb-2 block font-medium">{t('workflow.targetStatuses')}</label>
                                     <div className="flex flex-wrap gap-2">
                                         {Array.from(new Set([...Object.keys(STATUS_MAP), ...Object.keys(statusCounts)])).map(status => {
                                             const info = STATUS_MAP[status] || { label: status, dot: 'bg-slate-500' }
@@ -330,7 +332,7 @@ export default function Tasks() {
                                     </div>
                                     {matchingCount > 0 && (
                                         <p className="text-[11px] text-emerald-400 font-bold mt-2 animate-pulse">
-                                            ✓ Dự kiến xử lý: {matchingCount} tài khoản
+                                            ✓ {t('accounts.title')}: {matchingCount} {t('accounts.title').toLowerCase()}
                                         </p>
                                     )}
                                 </div>

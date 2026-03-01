@@ -42,6 +42,11 @@ const en = {
         copied: 'Copied',
         unknown: 'Unknown',
         noDescription: 'No description',
+        threads: 'threads',
+        justNow: 'just now',
+        minutesAgo: 'minutes ago',
+        hoursAgo: 'hours ago',
+        daysAgo: 'days ago',
     },
 
     // ── Navigation ───────────────────────────────────────────────────

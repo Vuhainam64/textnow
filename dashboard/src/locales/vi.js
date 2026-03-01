@@ -42,6 +42,11 @@ const vi = {
         copied: 'Đã sao chép',
         unknown: 'Không xác định',
         noDescription: 'Không có mô tả',
+        threads: 'luồng',
+        justNow: 'vừa xong',
+        minutesAgo: 'phút trước',
+        hoursAgo: 'giờ trước',
+        daysAgo: 'ngày trước',
     },
 
     // ── Navigation ───────────────────────────────────────────────────
@@ -79,7 +84,7 @@ const vi = {
 
     // ── Dashboard ────────────────────────────────────────────────────
     dashboard: {
-        title: 'Bảng điều khiển',
+        title: 'Tổng quan hệ thống',
         subtitle: 'Tổng quan hoạt động hệ thống',
         totalAccounts: 'Tổng tài khoản',
         activeAccounts: 'Tài khoản hoạt động',

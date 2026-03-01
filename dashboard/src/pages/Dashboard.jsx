@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { DashboardService } from '../services/apiService'
 import { useNavigate } from 'react-router-dom'
+import { useT } from '../lib/i18n'
 
 // ─── Status config ────────────────────────────────────────────────────────────
 const EXEC_STATUS = {
@@ -74,14 +75,21 @@ function StatusBar({ label, count, total, color, textColor }) {
 }
 
 function ExecutionRow({ exec }) {
-    const cfg = EXEC_STATUS[exec.status] || EXEC_STATUS.completed
+    const t = useT()
+    const execStatus = {
+        running: { label: t('workflow.running'), dot: 'bg-emerald-400 animate-pulse', text: 'text-emerald-400', badge: 'bg-emerald-500/15 border-emerald-500/30' },
+        completed: { label: t('workflow.completed'), dot: 'bg-blue-400', text: 'text-blue-400', badge: 'bg-blue-500/15 border-blue-500/30' },
+        failed: { label: t('workflow.failed'), dot: 'bg-red-400', text: 'text-red-400', badge: 'bg-red-500/15 border-red-500/30' },
+        stopped: { label: t('workflow.stopped'), dot: 'bg-amber-400', text: 'text-amber-400', badge: 'bg-amber-500/15 border-amber-500/30' },
+    }
+    const cfg = execStatus[exec.status] || execStatus.completed
     return (
         <div className="flex items-center gap-3 py-2.5 border-b border-white/5 last:border-0 group">
             <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
             <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-slate-200 truncate">{exec.workflowName}</p>
                 <p className="text-[11px] text-slate-600 mt-0.5">
-                    {exec.options?.target_statuses?.join(', ')} · {exec.options?.threads || 1} luồng · {timeAgo(exec.started_at)}
+                    {exec.options?.target_statuses?.join(', ')} · {exec.options?.threads || 1} {t('common.threads') || 'luồng'} · {timeAgo(exec.started_at, t)}
                 </p>
             </div>
             <div className="text-right shrink-0">
@@ -112,6 +120,7 @@ function SectionHeader({ icon: Icon, title, iconColor, action, onAction }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function Dashboard() {
+    const t = useT()
     const [data, setData] = useState(null)
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
@@ -156,7 +165,7 @@ export default function Dashboard() {
         <div className="h-full flex items-center justify-center">
             <div className="flex flex-col items-center gap-3">
                 <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
-                <p className="text-sm text-slate-500">Đang tải dữ liệu...</p>
+                <p className="text-sm text-slate-500">{t('common.loading')}</p>
             </div>
         </div>
     )
@@ -166,10 +175,10 @@ export default function Dashboard() {
             {/* Header */}
             <div className="flex items-start justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-white">Tổng quan hệ thống</h2>
+                    <h2 className="text-2xl font-bold text-white">{t('dashboard.title')}</h2>
                     <p className="text-sm text-slate-500 mt-1">
-                        Cập nhật {lastUpdate ? lastUpdate.toLocaleTimeString('vi-VN') : '—'}
-                        {runningCount > 0 && <span className="ml-2 text-emerald-400 font-medium">· {runningCount} đang chạy</span>}
+                        {t('common.refresh')} {lastUpdate ? lastUpdate.toLocaleTimeString() : '—'}
+                        {runningCount > 0 && <span className="ml-2 text-emerald-400 font-medium">· {runningCount} {t('workflow.running')}</span>}
                     </p>
                 </div>
                 <button
@@ -178,33 +187,33 @@ export default function Dashboard() {
                     className="flex items-center gap-2 px-3 py-2 rounded-xl glass border border-white/5 text-sm text-slate-400 hover:text-white transition-all hover:border-white/10 disabled:opacity-50"
                 >
                     <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
-                    Làm mới
+                    {t('common.refresh')}
                 </button>
             </div>
 
             {/* ── Stats Row ── */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard
-                    icon={Users} label="Tổng tài khoản" value={accTotal}
-                    sub={`${acc.active || 0} đang hoạt động`}
+                    icon={Users} label={t('dashboard.totalAccounts')} value={accTotal}
+                    sub={`${acc.active || 0} ${t('status.active').toLowerCase()}`}
                     accent="bg-blue-500"
                     onClick={() => navigate('/accounts')}
                 />
                 <StatCard
-                    icon={CheckCircle} label="Tài khoản active" value={acc.active || 0}
-                    sub={accTotal ? `${Math.round(((acc.active || 0) / accTotal) * 100)}% tổng số` : 'Chưa có dữ liệu'}
+                    icon={CheckCircle} label={t('dashboard.activeAccounts')} value={acc.active || 0}
+                    sub={accTotal ? `${Math.round(((acc.active || 0) / accTotal) * 100)}% ${t('common.total').toLowerCase()}` : t('common.noData')}
                     accent="bg-emerald-500"
                     onClick={() => navigate('/accounts')}
                 />
                 <StatCard
-                    icon={Globe} label="Tổng proxy" value={prxTotal}
-                    sub={`${prx.active || 0} khả dụng`}
+                    icon={Globe} label={t('dashboard.totalProxies')} value={prxTotal}
+                    sub={`${prx.active || 0} ${t('status.active').toLowerCase()}`}
                     accent="bg-violet-500"
                     onClick={() => navigate('/proxies')}
                 />
                 <StatCard
-                    icon={Zap} label="Kịch bản" value={wf.total || 0}
-                    sub={runningCount > 0 ? `${runningCount} đang thực thi` : 'Không có phiên nào chạy'}
+                    icon={Zap} label={t('nav.workflow')} value={wf.total || 0}
+                    sub={runningCount > 0 ? `${runningCount} ${t('workflow.running')}` : t('history.noHistory')}
                     accent="bg-amber-500"
                     onClick={() => navigate('/tasks')}
                 />
@@ -282,7 +291,7 @@ export default function Dashboard() {
 
             {/* ── System info ── */}
             <div className="glass rounded-2xl p-5 border border-white/5">
-                <SectionHeader icon={Zap} title="Thông tin hệ thống" iconColor="text-amber-400" />
+                <SectionHeader icon={Zap} title={t('nav.systemTitle')} iconColor="text-amber-400" />
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {[
                         { label: 'Automation Engine', value: 'Playwright + CDP', icon: Play, color: 'text-emerald-400' },
@@ -304,10 +313,10 @@ export default function Dashboard() {
             {/* ── Quick actions ── */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
-                    { label: 'Thêm tài khoản', icon: Users, to: '/accounts', accent: 'from-blue-600/20 to-blue-600/5 border-blue-500/20 hover:border-blue-500/40', icon_color: 'text-blue-400' },
-                    { label: 'Thêm proxy', icon: Globe, to: '/proxies', accent: 'from-violet-600/20 to-violet-600/5 border-violet-500/20 hover:border-violet-500/40', icon_color: 'text-violet-400' },
-                    { label: 'Tạo kịch bản', icon: Zap, to: '/tasks', accent: 'from-amber-600/20 to-amber-600/5 border-amber-500/20 hover:border-amber-500/40', icon_color: 'text-amber-400' },
-                    { label: 'Xem lịch sử', icon: Clock, to: '/history', accent: 'from-emerald-600/20 to-emerald-600/5 border-emerald-500/20 hover:border-emerald-500/40', icon_color: 'text-emerald-400' },
+                    { label: t('accounts.addAccount'), icon: Users, to: '/accounts', accent: 'from-blue-600/20 to-blue-600/5 border-blue-500/20 hover:border-blue-500/40', icon_color: 'text-blue-400' },
+                    { label: t('proxies.addProxy'), icon: Globe, to: '/proxies', accent: 'from-violet-600/20 to-violet-600/5 border-violet-500/20 hover:border-violet-500/40', icon_color: 'text-violet-400' },
+                    { label: t('workflow.createWorkflow'), icon: Zap, to: '/tasks', accent: 'from-amber-600/20 to-amber-600/5 border-amber-500/20 hover:border-amber-500/40', icon_color: 'text-amber-400' },
+                    { label: t('history.title'), icon: Clock, to: '/history', accent: 'from-emerald-600/20 to-emerald-600/5 border-emerald-500/20 hover:border-emerald-500/40', icon_color: 'text-emerald-400' },
                 ].map(({ label, icon: Icon, to, accent, icon_color }) => (
                     <button
                         key={label}
