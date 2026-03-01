@@ -28,8 +28,8 @@ const accountGroupSchema = new mongoose.Schema(
             default: '#3b82f6', // blue-500
         },
         labels: {
-            // Nhãn mục đích: VER, RESET, CHECK LIVE, hoặc tuỳ chỉnh
-            type: [String],
+            // Nhãn mục đích: { text: 'VER', color: '#10b981' }
+            type: [{ text: { type: String }, color: { type: String, default: '#3b82f6' } }],
             default: [],
         },
     },

@@ -576,11 +576,16 @@ export default function Accounts() {
                         {/* Labels */}
                         {g.labels?.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1 ml-5">
-                                {g.labels.map(lbl => (
-                                    <span key={lbl} className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-white/8 text-slate-400 border border-white/10">
-                                        {lbl}
-                                    </span>
-                                ))}
+                                {g.labels.map((lbl, i) => {
+                                    const text = typeof lbl === 'string' ? lbl : lbl.text
+                                    const color = typeof lbl === 'string' ? '#64748b' : (lbl.color || '#64748b')
+                                    return (
+                                        <span key={i} className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide"
+                                            style={{ backgroundColor: color + '22', border: `1px solid ${color}55`, color }}>
+                                            {text}
+                                        </span>
+                                    )
+                                })}
                             </div>
                         )}
                     </div>
