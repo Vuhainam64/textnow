@@ -165,6 +165,117 @@ function ThreadCard({ thread, executionId }) {
 }
 
 
+// ─── Error View (filter + search) ────────────────────────────────────────────
+function ErrorView({ logs }) {
+    const [errFilter, setErrFilter] = useState('all'); // 'all' | 'error' | 'warning'
+    const [search, setSearch] = useState('');
+
+    const visible = logs.filter(l => {
+        if (errFilter !== 'all' && l.type !== errFilter) return false;
+        if (search) {
+            const q = search.toLowerCase();
+            const msg = (l.message || '').toLowerCase();
+            const acc = (l.threadId || '').toLowerCase();
+            if (!msg.includes(q) && !acc.includes(q)) return false;
+        }
+        return true;
+    });
+
+    const errorCount = logs.filter(l => l.type === 'error').length;
+    const warnCount = logs.filter(l => l.type === 'warning').length;
+
+    return (
+        <div className="flex-1 flex flex-col overflow-hidden bg-[#090c12]">
+            {/* Filter + Search bar */}
+            <div className="px-4 py-2.5 border-b border-white/5 bg-black/20 flex items-center gap-3 flex-wrap shrink-0">
+                {/* Type filter pills */}
+                <div className="flex items-center gap-1.5">
+                    <button
+                        onClick={() => setErrFilter('all')}
+                        className={`text-[10px] px-2.5 py-1 rounded-lg font-bold border transition-all ${errFilter === 'all'
+                            ? 'bg-slate-600/40 text-slate-200 border-slate-500/40'
+                            : 'text-slate-500 border-white/10 hover:border-white/20'}`}
+                    >
+                        Tất cả ({errorCount + warnCount})
+                    </button>
+                    <button
+                        onClick={() => setErrFilter('error')}
+                        className={`flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-lg font-bold border transition-all ${errFilter === 'error'
+                            ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                            : 'text-slate-500 border-white/10 hover:text-rose-400 hover:border-rose-500/30'}`}
+                    >
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-400 inline-block" />
+                        Lỗi ({errorCount})
+                    </button>
+                    <button
+                        onClick={() => setErrFilter('warning')}
+                        className={`flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-lg font-bold border transition-all ${errFilter === 'warning'
+                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                            : 'text-slate-500 border-white/10 hover:text-amber-400 hover:border-amber-500/30'}`}
+                    >
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                        Cảnh báo ({warnCount})
+                    </button>
+                </div>
+
+                {/* Search */}
+                <div className="flex-1 min-w-[160px]">
+                    <input
+                        type="text"
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        placeholder="Tìm kiếm lỗi, tài khoản..."
+                        className="w-full px-3 py-1 rounded-lg bg-white/5 border border-white/10 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-rose-500/30 font-mono"
+                    />
+                </div>
+
+                {/* Result count */}
+                {(errFilter !== 'all' || search) && (
+                    <span className="text-[10px] text-slate-600 shrink-0">{visible.length} kết quả</span>
+                )}
+            </div>
+
+            {/* Log list */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 font-mono text-[12px] leading-relaxed scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+                {visible.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-40 text-slate-600 gap-3">
+                        <CheckCircle2 size={24} className="text-emerald-700" />
+                        <p className="text-sm">{logs.length === 0 ? 'Không có lỗi nào 🎉' : 'Không tìm thấy kết quả'}</p>
+                    </div>
+                ) : (
+                    <div className="space-y-1">
+                        {visible.map((log, i) => {
+                            const acc = log.threadId ? log.threadId.split('@')[0] : null;
+                            const acColor = acc ? getAccountColor(acc, accountColorCache) : null;
+                            const isErr = log.type === 'error';
+                            return (
+                                <div
+                                    key={log.id || i}
+                                    className={`flex gap-3 rounded-lg px-3 py-1.5 -mx-1 border-l-2 ${isErr
+                                        ? 'bg-rose-500/5 border-rose-500/40'
+                                        : 'bg-amber-500/5 border-amber-500/40'}`}
+                                >
+                                    <span className="text-slate-700 shrink-0 text-[10px] mt-0.5 w-14 font-mono">
+                                        {log.timestamp ? new Date(log.timestamp).toLocaleTimeString('vi-VN') : ''}
+                                    </span>
+                                    {acc ? (
+                                        <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md border font-mono max-w-[120px] truncate ${acColor?.pill}`} title={log.threadId}>
+                                            {acc}
+                                        </span>
+                                    ) : <span className="shrink-0 w-[80px]" />}
+                                    <span className={`flex-1 break-all ${isErr ? 'text-rose-400' : 'text-amber-400'}`}>
+                                        {log.message ?? ''}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function History() {
     const [searchParams] = useSearchParams();
@@ -599,44 +710,12 @@ export default function History() {
                                 </div>
                             </div>
                         ) : viewMode === 'error' ? (
-                            /* ─ ERROR VIEW ─ */
+                            /* ─ ERROR VIEW with filter + search ─ */
                             (() => {
-                                const errLogs = logs.filter(l => l.type === 'error' || l.type === 'warning');
-                                return (
-                                    <div className="flex-1 overflow-y-auto px-4 py-4 font-mono text-[12px] leading-relaxed bg-[#090c12] scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
-                                        {errLogs.length === 0 ? (
-                                            <div className="flex flex-col items-center justify-center h-40 text-slate-600 gap-3">
-                                                <CheckCircle2 size={24} className="text-emerald-700" />
-                                                <p className="text-sm">Không có lỗi nào 🎉</p>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-1">
-                                                {errLogs.map((log, i) => (
-                                                    <div key={log.id || i} className={`flex gap-3 rounded-lg px-3 py-1.5 -mx-1 border-l-2 ${log.type === 'error'
-                                                        ? 'bg-rose-500/5 border-rose-500/40'
-                                                        : 'bg-amber-500/5 border-amber-500/40'
-                                                        }`}>
-                                                        <span className="text-slate-700 shrink-0 text-[10px] mt-0.5 w-14 font-mono">
-                                                            {log.timestamp ? new Date(log.timestamp).toLocaleTimeString('vi-VN') : ''}
-                                                        </span>
-                                                        {(() => {
-                                                            const acc = log.threadId ? log.threadId.split('@')[0] : null;
-                                                            const acColor = acc ? getAccountColor(acc, accountColorCache) : null;
-                                                            return acc ? (
-                                                                <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md border font-mono max-w-[120px] truncate ${acColor?.pill}`} title={log.threadId}>
-                                                                    {acc}
-                                                                </span>
-                                                            ) : <span className="shrink-0 w-[80px]" />;
-                                                        })()}
-                                                        <span className={`flex-1 break-all ${log.type === 'error' ? 'text-rose-400' : 'text-amber-400'
-                                                            }`}>{log.message}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                );
+                                const allErrLogs = logs.filter(l => l.type === 'error' || l.type === 'warning');
+                                return <ErrorView logs={allErrLogs} />;
                             })()
+
                         ) : (
                             /* ─ THREAD VIEW ─ */
                             <div className="flex-1 overflow-y-auto p-5 space-y-3 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
