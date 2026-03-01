@@ -239,7 +239,7 @@ export async function handlePerimeterX(executionId, config, context, engine) {
         return false;
     }
 
-    if (apiStatus !== 403) {
+    if (apiStatus === 200) {
         page.off('request', onReq);
         context.log(`   + Khong bi chan (${apiStatus}) → TRUE`);
         return true;
@@ -265,7 +265,7 @@ export async function handlePerimeterX(executionId, config, context, engine) {
 
         try {
             const res = await page.request.get(apiUrl, { timeout: 5000 });
-            if (res.status() !== 403) {
+            if (res.status() === 200) {
                 context.log(`   + API tra ${res.status()} trong luc cho → PASS (khong can giai)`, 'info');
                 apiPassedEarly = true;
                 break;
@@ -403,7 +403,7 @@ async function _solvePerimeterX(page, context, engine, executionId, apiUrl, time
                 try {
                     const res = await page.request.get(apiUrl, { timeout: 5000 });
                     const status = res.status();
-                    if (status !== 403) {
+                    if (status === 200) {
                         context.log(`   + API tra ${status} sau ${Date.now() - holdStart}ms giu → PASS`);
                         solved = true;
                         break;
