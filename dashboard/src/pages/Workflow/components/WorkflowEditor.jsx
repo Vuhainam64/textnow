@@ -967,6 +967,8 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                             className="!bg-[#161b27] !border-white/5 !rounded-xl overflow-hidden shadow-2xl"
                             maskColor="rgba(0, 0, 0, 0.4)"
                             nodeColor={n => n.type === 'sourceNode' ? '#10b981' : '#3b82f6'}
+                            zoomable
+                            pannable
                         />
                     </ReactFlow>
 
