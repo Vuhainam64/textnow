@@ -40,9 +40,9 @@ router.get('/accounts', async (req, res) => {
 /** POST /api/groups/accounts — tạo nhóm mới */
 router.post('/accounts', async (req, res) => {
     try {
-        const { name, description = '', color } = req.body;
+        const { name, description = '', color, labels } = req.body;
         if (!name?.trim()) return res.status(400).json({ success: false, message: 'name là bắt buộc' });
-        const group = await AccountGroup.create({ name: name.trim(), description, color });
+        const group = await AccountGroup.create({ name: name.trim(), description, color, labels });
         res.status(201).json({ success: true, data: group });
     } catch (err) {
         if (err.code === 11000) return res.status(409).json({ success: false, message: 'Tên nhóm đã tồn tại' });
@@ -75,9 +75,9 @@ router.post('/accounts/assign', async (req, res) => {
 /** PUT /api/groups/accounts/:id */
 router.put('/accounts/:id', async (req, res) => {
     try {
-        const { name, description, color } = req.body;
+        const { name, description, color, labels } = req.body;
         const group = await AccountGroup.findByIdAndUpdate(
-            req.params.id, { name, description, color }, { returnDocument: 'after', runValidators: true }
+            req.params.id, { name, description, color, labels }, { returnDocument: 'after', runValidators: true }
         );
         if (!group) return res.status(404).json({ success: false, message: 'Không tìm thấy nhóm' });
         res.json({ success: true, data: group });
