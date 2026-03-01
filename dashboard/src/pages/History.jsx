@@ -25,6 +25,14 @@ const THREAD_STATUS = {
     error: { label: 'Lỗi', color: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20', Icon: XCircle, spin: false },
 };
 
+const LOG_COLORS = {
+    error: 'text-rose-400',
+    warning: 'text-amber-400',
+    success: 'text-emerald-400',
+    info: 'text-sky-400',
+    default: 'text-slate-300',
+};
+
 // Account color palette (consistent per account name)
 const ACCOUNT_COLORS = [
     { pill: 'bg-blue-500/15 text-blue-300 border-blue-500/25', dot: 'bg-blue-400' },
@@ -47,6 +55,16 @@ function getAccountColor(name, colorMap) {
 
 // Shared color map (module-level để stable giữa rerenders)
 const accountColorCache = {};
+
+function duration(start, end) {
+    if (!start) return '';
+    const ms = (end ? new Date(end) : new Date()) - new Date(start);
+    const s = Math.floor(ms / 1000);
+    if (s < 60) return `${s}s`;
+    const m = Math.floor(s / 60);
+    const rs = s % 60;
+    return `${m}m ${rs}s`;
+}
 
 function LogLine({ log }) {
     const colorCls = LOG_COLORS[log.type] || LOG_COLORS.default;
@@ -207,7 +225,7 @@ export default function History() {
     }, []); // eslint-disable-line
 
     useExecutionSocket(selectedId, {
-        onLog: handleSocketLog,
+        // KHÔNG dung onLog de tranh duplicate (hook backward-compat da goi onLog cho moi entry trong batch)
         onLogBatch: handleLogBatch,
         onThreadMeta: handleThreadMeta,
         onThreadUpdate: handleThreadUpdate,
