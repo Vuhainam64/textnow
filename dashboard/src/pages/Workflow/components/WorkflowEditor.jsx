@@ -140,6 +140,7 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
     const [logs, setLogs] = useState([]);
     const [logHeight, setLogHeight] = useState(256);              // px, default 256 = h-64
     const logDragRef = useRef(null);                              // { startY, startH }
+    const socketRef = useRef(null);                               // socket singleton cho execution nay
     const [currentExecutionId, setCurrentExecutionId] = useState(null);
     const [activeNodeId, setActiveNodeId] = useState(null);       // Node dang chay
     const [autoFollow, setAutoFollow] = useState(true);            // Tu dong cuon toi node dang chay
@@ -250,9 +251,14 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
 
     // ── Phát hiện execution đang chạy khi reload/F5 ──────────────────────────
     useEffect(() => {
+        let cancelled = false;
         const tryReconnect = async () => {
+            // Guard: neu socket da ton tai thi khong tao moi
+            if (socketRef.current?.connected) return;
+
             try {
                 const res = await WorkflowsService.getAllExecutions();
+                if (cancelled) return;
                 const executions = res.data?.data || res.data || [];
                 const running = executions.find(e =>
                     String(e.workflowId) === String(workflow._id) &&
@@ -260,20 +266,22 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                 );
                 if (!running) return;
 
-                // Tìm thấy execution đang chạy → khôi phục trạng thái
                 const execId = running.executionId;
                 setCurrentExecutionId(execId);
                 setIsExecuting(true);
                 setShowLogs(true);
                 addLog(`🔄 Đã tìm thấy quy trình đang chạy: ${execId}`, 'info');
 
-                // Reconnect socket
                 const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000';
                 const { io } = await import('socket.io-client');
+                if (cancelled) return;
+
+                // Tao socket 1 lan duy nhat
                 const socket = io(SOCKET_URL, {
                     transports: ['polling', 'websocket'],
                     reconnection: true,
                 });
+                socketRef.current = socket;
 
                 const joinRoom = () => {
                     socket.emit('join-execution', execId);
@@ -282,46 +290,55 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                 if (socket.connected) joinRoom();
                 else socket.once('connect', joinRoom);
 
-                socket.on('workflow-log', (newLog) => {
+                const handleLog = (newLog) => {
                     setLogs(prev => [...prev, {
                         ...newLog,
                         id: newLog.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                        time: newLog.timestamp
-                            ? new Date(newLog.timestamp).toLocaleTimeString('vi-VN')
-                            : new Date().toLocaleTimeString('vi-VN'),
+                        time: newLog.timestamp ? new Date(newLog.timestamp).toLocaleTimeString('vi-VN') : new Date().toLocaleTimeString('vi-VN'),
                     }]);
                     const portMatch = newLog?.message?.match(/CDP Port: (\d+)/);
                     if (portMatch) setBrowserPort(portMatch[1]);
                     const profileMatch = newLog?.message?.match(/Profile ID: ([a-f0-9\-]{30,})/);
                     if (profileMatch) setProfileId(profileMatch[1]);
-                });
+                };
 
-                socket.on('workflow-log-batch', (entries) => {
+                const handleBatch = (entries) => {
                     if (!Array.isArray(entries)) return;
+                    let counter = 0;
+                    const ts = Date.now();
                     setLogs(prev => [...prev, ...entries.filter(Boolean).map(e => ({
                         ...e,
-                        id: e.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                        id: e.id || `r${ts}-${counter++}-${Math.random().toString(36).substr(2, 6)}`,
                         time: e.timestamp ? new Date(e.timestamp).toLocaleTimeString('vi-VN') : new Date().toLocaleTimeString('vi-VN'),
                     }))]);
-                });
+                };
 
+                socket.on('workflow-log', handleLog);
+                socket.on('workflow-log-batch', handleBatch);
                 socket.on('workflow-node-active', ({ nodeId }) => setActiveNodeId(nodeId));
-
                 socket.on('workflow-status', (data) => {
                     if (data.status === 'completed' || data.status === 'failed' || data.status === 'stopped') {
                         setIsExecuting(false);
                         setCurrentExecutionId(null);
                         setActiveNodeId(null);
                         socket.disconnect();
+                        socketRef.current = null;
                     }
                 });
-
                 socket.on('disconnect', () => setIsExecuting(false));
             } catch (e) {
                 console.warn('[WorkflowEditor] tryReconnect failed:', e.message);
             }
         };
+
         tryReconnect();
+        return () => {
+            cancelled = true;
+            if (socketRef.current) {
+                socketRef.current.disconnect();
+                socketRef.current = null;
+            }
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [workflow._id]);
 
