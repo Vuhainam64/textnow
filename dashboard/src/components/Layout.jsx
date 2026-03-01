@@ -19,6 +19,7 @@ import { useState, useEffect } from 'react'
 import { MLXService } from '../services/apiService'
 import SettingsModal from './SettingsModal'
 import ServerSwitcher from './ServerSwitcher'
+import LanguageSwitcher from './LanguageSwitcher'
 
 const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Tổng quan' },
@@ -158,6 +159,8 @@ function Header({ onShowSettings }) {
             </div>
 
             <div className="flex items-center gap-3">
+                {/* Language Switcher */}
+                <LanguageSwitcher />
                 {/* Server Switcher */}
                 <ServerSwitcher onChange={() => window.location.reload()} />
                 {/* Status badge */}
