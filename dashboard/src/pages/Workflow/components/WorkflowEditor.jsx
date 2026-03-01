@@ -446,11 +446,11 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
         if (!groupId) { setRunConfig(c => ({ ...c, _statusCounts: {} })); return; }
         try {
             const res = await AccountsService.getStats({ group_id: groupId });
-            const raw = res.data?.data?.stats || [];
+            const raw = res.data?.stats || [];
             const map = {};
             raw.forEach(s => { map[s._id] = s.count; });
             setRunConfig(c => ({ ...c, _statusCounts: map }));
-        } catch { /* ignore */ }
+        } catch (err) { console.error('[fetchStatusCounts] ERROR:', err); }
     };
 
     const handleRun = () => {
