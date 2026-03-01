@@ -1,9 +1,15 @@
 import { Server } from 'socket.io';
-import WorkflowEngine from './workflowEngine.js';
 
 class SocketService {
     constructor() {
         this.io = null;
+        // Lazy reference: set bởi workflowEngine sau khi init
+        this._getExecution = null;
+    }
+
+    // workflowEngine goi ham nay sau khi khoi dong de tranh circular import
+    setExecutionGetter(fn) {
+        this._getExecution = fn;
     }
 
     init(httpServer) {
@@ -21,13 +27,13 @@ class SocketService {
                 socket.join(executionId);
                 console.log(`[Socket] 👤 Client ${socket.id} joined execution: ${executionId}`);
 
-                // Khi client rejoin, emit lại trạng thái hiện tại ngay
-                const exec = WorkflowEngine.activeExecutions.get(executionId);
+                // Khi client rejoin, emit lai trang thai hien tai ngay
+                const exec = this._getExecution?.(executionId);
                 if (exec) {
-                    // Emit execution status hiện tại
+                    // Emit execution status hien tai
                     socket.emit('workflow-status', { status: exec.status });
 
-                    // Emit node đang active (nếu có) — giúp client thấy lại khối đang chạy
+                    // Emit node dang active (neu co) — giup client thay lai khoi dang chay
                     if (exec.currentNodeId && (exec.status === 'running' || exec.status === 'stopping')) {
                         socket.emit('workflow-node-active', { nodeId: exec.currentNodeId });
                     }

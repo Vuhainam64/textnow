@@ -512,4 +512,10 @@ class WorkflowEngine {
     }
 }
 
-export default new WorkflowEngine();
+const engine = new WorkflowEngine();
+
+// Inject getter vao socketService de tranh circular import
+// socketService khong import workflowEngine truc tiep
+socketService.setExecutionGetter((id) => engine.activeExecutions.get(id));
+
+export default engine;
