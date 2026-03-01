@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import pkg from '../../package.json'
 import {
     LayoutDashboard,
     Users,
@@ -87,8 +88,20 @@ function Sidebar({ collapsed, onToggle }) {
                 ))}
             </nav>
 
-            {/* Bottom: collapse button */}
-            <div className="p-3 border-t border-white/5 flex-shrink-0">
+            {/* Version + collapse button */}
+            <div className="p-3 border-t border-white/5 flex-shrink-0 space-y-1">
+                {/* Version badge */}
+                {!collapsed ? (
+                    <div className="flex items-center gap-2 px-3 py-1.5">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
+                        <span className="text-[10px] text-slate-600 font-mono">v{pkg.version}</span>
+                        <span className="ml-auto text-[9px] text-slate-700 font-medium uppercase tracking-widest">stable</span>
+                    </div>
+                ) : (
+                    <div className="flex justify-center py-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    </div>
+                )}
                 <button
                     onClick={onToggle}
                     className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl
