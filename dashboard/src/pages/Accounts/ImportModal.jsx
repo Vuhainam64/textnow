@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { FileText } from 'lucide-react'
 import Modal from '../../components/Modal'
+import { useT } from '../../lib/i18n'
 
 export default function AccountImportModal({
     show, onClose,
@@ -8,6 +9,7 @@ export default function AccountImportModal({
     importLoading, importProgress,
     onImport, currentGroup,
 }) {
+    const t = useT()
     const fileInputRef = useRef(null)
 
     if (!show) return null
@@ -24,20 +26,20 @@ export default function AccountImportModal({
     const lineCount = importText ? importText.trim().split('\n').filter(Boolean).length : 0
 
     return (
-        <Modal title="Nhập hàng loạt tài khoản" onClose={() => { onClose(); setImportText(''); }}>
+        <Modal title={t('accounts.importAccounts')} onClose={() => { onClose(); setImportText(''); }}>
             <div className="space-y-3">
                 {/* Format hint */}
                 <div className="p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl space-y-2">
                     <p className="text-[11px] text-slate-400 font-medium">
-                        Hỗ trợ 2 định dạng (dùng dấu <code className="text-blue-400 font-bold">|</code> để ngăn cách):
+                        {t('accounts.importFormats')} (<code className="text-blue-400 font-bold">|</code> {t('accounts.importSeparator')}):
                     </p>
                     <ul className="text-[10px] text-slate-500 space-y-1 list-disc pl-4">
-                        <li><span className="text-slate-300">6 cột:</span> <code className="text-blue-400/80">tn_user|tn_pass|hm_user|hm_pass|hm_token|client_id</code></li>
-                        <li><span className="text-slate-300">4 cột:</span> <code className="text-blue-400/80">hm_user|hm_pass|hm_token|client_id</code> (Tự động lấy hm làm tn)</li>
+                        <li><span className="text-slate-300">6 {t('accounts.columns')}:</span> <code className="text-blue-400/80">tn_user|tn_pass|hm_user|hm_pass|hm_token|client_id</code></li>
+                        <li><span className="text-slate-300">4 {t('accounts.columns')}:</span> <code className="text-blue-400/80">hm_user|hm_pass|hm_token|client_id</code> ({t('accounts.autoUseHotmail')})</li>
                     </ul>
                     {currentGroup && (
                         <p className="text-[10px] text-emerald-400 font-medium pt-1">
-                            → Tài khoản sẽ được thêm vào nhóm: <span className="underline">{currentGroup.name}</span>
+                            → {t('accounts.importToGroup')}: <span className="underline">{currentGroup.name}</span>
                         </p>
                     )}
                 </div>
@@ -47,10 +49,10 @@ export default function AccountImportModal({
                     <input ref={fileInputRef} type="file" accept=".txt,.csv" className="hidden" onChange={handleFileSelect} />
                     <button onClick={() => fileInputRef.current?.click()}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 text-xs hover:bg-white/10 transition-all">
-                        <FileText size={13} /> Chọn file .txt
+                        <FileText size={13} /> {t('accounts.chooseFile')}
                     </button>
                     {importText && (
-                        <span className="text-xs text-slate-500">{lineCount.toLocaleString()} dòng</span>
+                        <span className="text-xs text-slate-500">{lineCount.toLocaleString()} {t('accounts.lines')}</span>
                     )}
                 </div>
 
@@ -63,7 +65,7 @@ export default function AccountImportModal({
                     <div className="space-y-1.5">
                         <div className="flex justify-between text-[10px] text-slate-500">
                             <span>Batch {Math.ceil(importProgress.done / 500)}/{Math.ceil(importProgress.total / 500)}</span>
-                            <span>{importProgress.inserted} đã nhập</span>
+                            <span>{importProgress.inserted} {t('accounts.imported')}</span>
                         </div>
                         <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
                             <div className="h-full bg-blue-500 rounded-full transition-all duration-300"
@@ -74,10 +76,10 @@ export default function AccountImportModal({
 
                 <div className="flex justify-end gap-2">
                     <button onClick={() => { onClose(); setImportText(''); }}
-                        className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Huỷ</button>
+                        className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">{t('common.cancel')}</button>
                     <button onClick={onImport} disabled={importLoading || !importText.trim()}
                         className="px-5 py-2 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-60 transition-all">
-                        {importLoading ? `Đang nhập...` : `Nhập tài khoản`}
+                        {importLoading ? t('accounts.importing') : t('accounts.importAccounts')}
                     </button>
                 </div>
             </div>

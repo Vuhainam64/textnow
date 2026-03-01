@@ -1,7 +1,13 @@
-import { useState } from 'react'
 import { Download } from 'lucide-react'
 import Modal from '../../components/Modal'
 import { STATUS_MAP } from '../../lib/ui'
+import { useT } from '../../lib/i18n'
+
+const STATUS_I18N_KEY = {
+    'active': 'active', 'inactive': 'inactive', 'banned': 'banned',
+    'dead': 'dead', 'pending': 'pending', 'die_mail': 'die_mail',
+    'no_mail': 'no_mail', 'captcha': 'captcha', 'Reset Error': 'reset_error', 'verified': 'verified',
+}
 
 export default function AccountExportModal({
     show, onClose,
@@ -10,20 +16,23 @@ export default function AccountExportModal({
     exportLoading, onExport,
     currentGroup,
 }) {
+    const t = useT()
     if (!show) return null
 
     return (
-        <Modal title="Xuất tài khoản" onClose={onClose}>
+        <Modal title={t('accounts.exportAccounts')} onClose={onClose}>
             <div className="space-y-4">
                 {/* Status filter */}
                 <div>
                     <label className="text-xs text-slate-500 mb-2 block font-medium">
-                        Lọc theo trạng thái <span className="text-slate-600">(bỏ trống = tất cả)</span>
+                        {t('accounts.filterByStatus')} <span className="text-slate-600">({t('accounts.emptyMeansAll')})</span>
                     </label>
                     <div className="flex flex-wrap gap-2">
                         {['pending', 'active', 'inactive', 'banned', 'die_mail', 'no_mail', 'verified', 'Reset Error'].map(s => {
                             const cfg = STATUS_MAP[s] || { label: s }
                             const active = exportStatus.includes(s)
+                            const i18nKey = STATUS_I18N_KEY[s]
+                            const label = i18nKey ? t(`status.${i18nKey}`) : cfg.label
                             return (
                                 <button key={s}
                                     onClick={() => setExportStatus(prev =>
@@ -32,7 +41,7 @@ export default function AccountExportModal({
                                     className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${active
                                         ? 'bg-blue-600/20 border-blue-500/40 text-blue-300'
                                         : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/20'}`}>
-                                    {cfg.label || s}
+                                    {label}
                                 </button>
                             )
                         })}
@@ -41,7 +50,7 @@ export default function AccountExportModal({
 
                 {currentGroup && (
                     <p className="text-[11px] text-emerald-400">
-                        → Chỉ xuất trong nhóm: <span className="font-semibold">{currentGroup.name}</span>
+                        → {t('accounts.exportFromGroup')}: <span className="font-semibold">{currentGroup.name}</span>
                     </p>
                 )}
 
@@ -53,25 +62,25 @@ export default function AccountExportModal({
                         <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${exportDeleteAfter ? 'translate-x-4' : ''}`} />
                     </div>
                     <div>
-                        <p className="text-sm font-medium text-slate-200">Xuất xong rồi xóa</p>
-                        <p className="text-[11px] text-slate-500">Tự động xóa các tài khoản đã xuất khỏi database</p>
+                        <p className="text-sm font-medium text-slate-200">{t('accounts.exportThenDelete')}</p>
+                        <p className="text-[11px] text-slate-500">{t('accounts.exportThenDeleteDesc')}</p>
                     </div>
                 </label>
 
                 {exportDeleteAfter && (
                     <div className="p-2.5 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-400">
-                        ⚠️ Cảnh báo: Sau khi xuất, các tài khoản sẽ bị xóa vĩnh viễn!
+                        ⚠️ {t('accounts.exportDeleteWarning')}
                     </div>
                 )}
 
                 <div className="flex justify-end gap-2 pt-1">
                     <button onClick={onClose}
-                        className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Huỷ</button>
+                        className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">{t('common.cancel')}</button>
                     <button onClick={onExport} disabled={exportLoading}
                         className={`px-5 py-2 rounded-xl text-sm font-medium text-white disabled:opacity-60 transition-all flex items-center gap-2 ${exportDeleteAfter ? 'bg-red-600 hover:bg-red-500' : 'bg-emerald-600 hover:bg-emerald-500'}`}>
                         {exportLoading
-                            ? 'Đang xuất...'
-                            : <><Download size={14} /> Xuất{exportDeleteAfter ? ' & Xóa' : ''}</>}
+                            ? t('accounts.exporting')
+                            : <><Download size={14} /> {t('common.export')}{exportDeleteAfter ? ` & ${t('common.delete')}` : ''}</>}
                     </button>
                 </div>
             </div>

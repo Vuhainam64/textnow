@@ -347,8 +347,8 @@ export default function Accounts() {
             {/* ── Modals ─────────────────────────────────────── */}
             {deleteAccountTarget && (
                 <ConfirmModal
-                    title="Xoá tài khoản"
-                    description="Xoá vĩnh viễn tài khoản này? Thao tác không thể hoàn tác."
+                    title={t('accounts.deleteAccount')}
+                    description={t('accounts.confirmDelete')}
                     danger
                     onConfirm={() => handleDelete(deleteAccountTarget)}
                     onClose={() => setDeleteAccountTarget(null)}
@@ -356,8 +356,8 @@ export default function Accounts() {
             )}
             {showDeleteAll && (
                 <ConfirmModal
-                    title="Xoá tất cả tài khoản"
-                    description={`Bạn có chắc chắn muốn xoá toàn bộ ${pagination.total} tài khoản đang hiển thị theo bộ lọc hiện tại không? Hành động này không thể hoàn tác!`}
+                    title={t('accounts.deleteAll')}
+                    description={t('accounts.confirmDeleteAll', { total: pagination.total })}
                     danger
                     onConfirm={handleDeleteAll}
                     onClose={() => setShowDeleteAll(false)}
@@ -377,22 +377,22 @@ export default function Accounts() {
             />
 
             {(showGroupForm || editingGroup) && (
-                <Modal title={editingGroup ? 'Sửa nhóm' : 'Tạo nhóm mới'} onClose={() => { setShowGroupForm(false); setEditingGroup(null) }}>
+                <Modal title={editingGroup ? t('groups.editGroup') : t('groups.createGroup')} onClose={() => { setShowGroupForm(false); setEditingGroup(null) }}>
                     <GroupForm initial={editingGroup} onSave={editingGroup ? handleUpdateGroup : handleCreateGroup}
                         onClose={() => { setShowGroupForm(false); setEditingGroup(null) }} />
                 </Modal>
             )}
 
             {deleteGroupTarget && (
-                <Modal title={`Xóa nhóm "${deleteGroupTarget.name}"`} onClose={() => setDeleteGroupTarget(null)}>
+                <Modal title={t('groups.confirmDeleteGroup', { name: deleteGroupTarget.name })} onClose={() => setDeleteGroupTarget(null)}>
                     <div className="space-y-4">
                         <p className="text-sm text-slate-400">
-                            Nhóm có <span className="text-white font-medium">{deleteGroupTarget.account_count}</span> tài khoản. Chọn cách xử lý:
+                            {t('groups.groupHasAccounts', { count: deleteGroupTarget.account_count })}
                         </p>
                         <div className="space-y-2">
                             {[
-                                { v: 'ungroup', label: 'Giữ tài khoản, chuyển về "Chưa có nhóm"', sub: 'An toàn hơn' },
-                                { v: 'delete', label: 'Xóa luôn toàn bộ tài khoản trong nhóm', sub: 'Không thể hoàn tác!' }
+                                { v: 'ungroup', label: t('groups.keepAccounts'), sub: t('groups.keepAccountsSub') },
+                                { v: 'delete', label: t('groups.deleteAccounts'), sub: t('groups.deleteAccountsSub') }
                             ].map(opt => (
                                 <label key={opt.v} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all
                                     ${deleteGroupMode === opt.v
@@ -408,10 +408,10 @@ export default function Accounts() {
                             ))}
                         </div>
                         <div className="flex justify-end gap-2 pt-1">
-                            <button onClick={() => setDeleteGroupTarget(null)} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Huỷ</button>
+                            <button onClick={() => setDeleteGroupTarget(null)} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">{t('common.cancel')}</button>
                             <button onClick={confirmDeleteGroup} disabled={deleteGroupLoading}
                                 className={`px-5 py-2 rounded-xl text-sm font-medium text-white disabled:opacity-60 transition-all ${deleteGroupMode === 'delete' ? 'bg-red-600 hover:bg-red-500' : 'bg-blue-600 hover:bg-blue-500'}`}>
-                                {deleteGroupLoading ? 'Đang xóa...' : 'Xác nhận xóa'}
+                                {deleteGroupLoading ? t('common.deleting') : t('groups.confirmDelete')}
                             </button>
                         </div>
                     </div>
@@ -419,17 +419,16 @@ export default function Accounts() {
             )}
 
             {clearMembersTarget && (
-                <Modal title={`Xóa tài khoản trong "${clearMembersTarget.name}"`} onClose={() => setClearMembersTarget(null)}>
+                <Modal title={t('groups.clearMembersTitle', { name: clearMembersTarget.name })} onClose={() => setClearMembersTarget(null)}>
                     <div className="space-y-4">
                         <p className="text-sm text-slate-400">
-                            Xóa toàn bộ <span className="text-white font-medium">{clearMembersTarget.account_count}</span> tài khoản trong nhóm?
-                            Nhóm vẫn được giữ lại. Hành động không thể hoàn tác!
+                            {t('groups.clearMembersDesc', { count: clearMembersTarget.account_count })}
                         </p>
                         <div className="flex justify-end gap-2">
-                            <button onClick={() => setClearMembersTarget(null)} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Huỷ</button>
+                            <button onClick={() => setClearMembersTarget(null)} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">{t('common.cancel')}</button>
                             <button onClick={confirmClearMembers} disabled={clearMembersLoading}
                                 className="px-5 py-2 rounded-xl text-sm font-medium bg-red-600 hover:bg-red-500 text-white disabled:opacity-60 transition-all">
-                                {clearMembersLoading ? 'Đang xóa...' : `Xóa ${clearMembersTarget.account_count} tài khoản`}
+                                {clearMembersLoading ? t('common.deleting') : t('groups.clearMembersBtn', { count: clearMembersTarget.account_count })}
                             </button>
                         </div>
                     </div>
@@ -437,11 +436,11 @@ export default function Accounts() {
             )}
 
             {showAssign && (
-                <Modal title="Phân nhóm tài khoản chưa có nhóm" onClose={() => setShowAssign(false)}>
+                <Modal title={t('groups.assignTitle')} onClose={() => setShowAssign(false)}>
                     <div className="space-y-4">
-                        <p className="text-sm text-slate-400">Hiện có <span className="text-white font-medium">{ungroupedCount}</span> tài khoản chưa có nhóm.</p>
+                        <p className="text-sm text-slate-400">{t('groups.ungroupedAccounts', { count: ungroupedCount })}</p>
                         <div className="flex gap-2">
-                            {[{ v: 'existing', label: 'Vào nhóm có sẵn' }, { v: 'new', label: 'Tạo nhóm mới' }].map(opt => (
+                            {[{ v: 'existing', label: t('groups.existingGroup') }, { v: 'new', label: t('groups.createGroup') }].map(opt => (
                                 <button key={opt.v} onClick={() => setAssignForm(f => ({ ...f, mode: opt.v }))}
                                     className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-all
                                         ${assignForm.mode === opt.v ? 'bg-blue-600/20 border-blue-500/40 text-blue-400' : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-200'}`}>
@@ -451,24 +450,24 @@ export default function Accounts() {
                         </div>
                         {assignForm.mode === 'existing' ? (
                             <div>
-                                <label className="text-xs text-slate-500 mb-1.5 block font-medium">Chọn nhóm</label>
+                                <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('groups.selectGroup')}</label>
                                 <Select value={assignForm.group_id} onChange={e => setAssignForm(f => ({ ...f, group_id: e.target.value }))}>
-                                    <option value="">— Chọn nhóm —</option>
+                                    <option value="">{t('groups.selectGroupPlaceholder')}</option>
                                     {groups.map(g => <option key={g._id} value={g._id}>{g.name}</option>)}
                                 </Select>
                             </div>
                         ) : (
                             <div className="space-y-3">
                                 <div>
-                                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">Tên nhóm mới *</label>
-                                    <input value={assignForm.name} onChange={e => setAssignForm(f => ({ ...f, name: e.target.value }))} className={inputCls} placeholder="VD: T1, Spam..." />
+                                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('groups.newGroupName')} *</label>
+                                    <input value={assignForm.name} onChange={e => setAssignForm(f => ({ ...f, name: e.target.value }))} className={inputCls} placeholder={t('groups.namePlaceholder')} />
                                 </div>
                                 <div>
-                                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">Mô tả</label>
-                                    <input value={assignForm.description} onChange={e => setAssignForm(f => ({ ...f, description: e.target.value }))} className={inputCls} placeholder="Mô tả nhóm..." />
+                                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('common.description')}</label>
+                                    <input value={assignForm.description} onChange={e => setAssignForm(f => ({ ...f, description: e.target.value }))} className={inputCls} placeholder={t('groups.descriptionPlaceholder')} />
                                 </div>
                                 <div>
-                                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">Màu nhóm</label>
+                                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('groups.groupColor')}</label>
                                     <div className="flex gap-2 flex-wrap">
                                         {GROUP_COLORS.map(c => (
                                             <button key={c} type="button" onClick={() => setAssignForm(f => ({ ...f, color: c }))}
@@ -483,16 +482,16 @@ export default function Accounts() {
                         )}
                         <div>
                             <label className="text-xs text-slate-500 mb-1.5 block font-medium">
-                                Số lượng tài khoản <span className="text-slate-600">(bỏ trống = tất cả)</span>
+                                {t('groups.accountCount')} <span className="text-slate-600">({t('proxies.emptyMeansAll')})</span>
                             </label>
                             <input type="number" value={assignForm.count} onChange={e => setAssignForm(f => ({ ...f, count: e.target.value }))}
-                                className={inputCls} placeholder={`Tối đa ${ungroupedCount}`} min="1" max={ungroupedCount} />
+                                className={inputCls} placeholder={`${t('common.max')} ${ungroupedCount}`} min="1" max={ungroupedCount} />
                         </div>
                         <div className="flex justify-end gap-2 pt-1">
-                            <button onClick={() => setShowAssign(false)} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Huỷ</button>
+                            <button onClick={() => setShowAssign(false)} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">{t('common.cancel')}</button>
                             <button onClick={confirmAssign} disabled={assignLoading}
                                 className="px-5 py-2 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-60 transition-all">
-                                {assignLoading ? 'Đang gán...' : 'Gán vào nhóm'}
+                                {assignLoading ? t('groups.assigning') : t('groups.assignToGroup')}
                             </button>
                         </div>
                     </div>
@@ -500,12 +499,12 @@ export default function Accounts() {
             )}
 
             {showAdd && (
-                <Modal title="Thêm tài khoản mới" onClose={() => setShowAdd(false)}>
+                <Modal title={t('accounts.addAccount')} onClose={() => setShowAdd(false)}>
                     <AccountForm groups={groups} groupId={selectedGroup !== '__all__' && selectedGroup !== '__ungrouped__' ? selectedGroup : ''} onSave={handleCreate} onClose={() => setShowAdd(false)} />
                 </Modal>
             )}
             {editing && (
-                <Modal title="Chỉnh sửa tài khoản" onClose={() => setEditing(null)}>
+                <Modal title={t('accounts.editAccount')} onClose={() => setEditing(null)}>
                     <AccountForm initial={editing} groups={groups} groupId={editing.group_id} onSave={handleUpdate} onClose={() => setEditing(null)} />
                 </Modal>
             )}

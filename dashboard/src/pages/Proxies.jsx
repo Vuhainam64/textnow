@@ -11,6 +11,7 @@ import StatusBadge from '../components/StatusBadge'
 import GroupForm from '../components/GroupForm'
 import ConfirmModal from '../components/MLX/ConfirmModal'
 import { showToast } from '../components/Toast'
+import { useT } from '../lib/i18n'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const TYPE_MAP = {
@@ -24,6 +25,7 @@ const TYPE_MAP = {
 
 // ─── Proxy Form ───────────────────────────────────────────────────────────────
 function ProxyForm({ initial, groups, groupId, onSave, onClose }) {
+    const t = useT()
     const [form, setForm] = useState(initial || {
         type: 'http', host: '', port: '', username: '', password: '', status: 'active', group_id: groupId || '',
     })
@@ -43,7 +45,7 @@ function ProxyForm({ initial, groups, groupId, onSave, onClose }) {
             {error && <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-xl p-3">{error}</div>}
             <div className="grid grid-cols-2 gap-3">
                 <div>
-                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">Loại *</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('proxies.type')} *</label>
                     <Select value={form.type} onChange={h('type')}>
                         <option value="http">HTTP</option>
                         <option value="https">HTTPS</option>
@@ -52,11 +54,11 @@ function ProxyForm({ initial, groups, groupId, onSave, onClose }) {
                     </Select>
                 </div>
                 <div>
-                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">Trạng thái</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('common.status')}</label>
                     <Select value={form.status} onChange={h('status')}>
-                        <option value="active">Hoạt động</option>
-                        <option value="inactive">Không kích hoạt</option>
-                        <option value="dead">Đã chết</option>
+                        <option value="active">{t('status.active')}</option>
+                        <option value="inactive">{t('status.inactive')}</option>
+                        <option value="dead">{t('status.dead')}</option>
                     </Select>
                 </div>
                 <div>
@@ -76,17 +78,17 @@ function ProxyForm({ initial, groups, groupId, onSave, onClose }) {
                     <input type="password" value={form.password} onChange={h('password')} className={inputCls} placeholder="••••••••" />
                 </div>
                 <div className="col-span-2">
-                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">Nhóm</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('accounts.group')}</label>
                     <Select value={form.group_id || ''} onChange={h('group_id')}>
-                        <option value="">— Không có nhóm —</option>
+                        <option value="">{t('accounts.noGroup')}</option>
                         {groups.map(g => <option key={g._id} value={g._id}>{g.name}</option>)}
                     </Select>
                 </div>
             </div>
             <div className="flex justify-end gap-2 pt-1">
-                <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Huỷ</button>
+                <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">{t('common.cancel')}</button>
                 <button type="submit" disabled={loading} className="px-5 py-2 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20 disabled:opacity-60 transition-all">
-                    {loading ? 'Đang lưu...' : 'Lưu proxy'}
+                    {loading ? t('common.saving') : t('proxies.saveProxy')}
                 </button>
             </div>
         </form>
@@ -95,6 +97,7 @@ function ProxyForm({ initial, groups, groupId, onSave, onClose }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Proxies() {
+    const t = useT()
     // Groups
     const [groups, setGroups] = useState([])
     const [ungroupedCount, setUngroupedCount] = useState(0)
@@ -243,27 +246,27 @@ export default function Proxies() {
         <div className="p-6 flex gap-5 h-full">
             {/* Modals */}
             {(showGroupForm || editingGroup) && (
-                <Modal title={editingGroup ? 'Sửa nhóm' : 'Tạo nhóm mới'} onClose={() => { setShowGroupForm(false); setEditingGroup(null) }}>
+                <Modal title={editingGroup ? t('groups.editGroup') : t('groups.createGroup')} onClose={() => { setShowGroupForm(false); setEditingGroup(null) }}>
                     <GroupForm initial={editingGroup} onSave={editingGroup ? handleUpdateGroup : handleCreateGroup}
                         onClose={() => { setShowGroupForm(false); setEditingGroup(null) }} />
                 </Modal>
             )}
             {showAdd && (
-                <Modal title="Thêm proxy mới" onClose={() => setShowAdd(false)}>
+                <Modal title={t('proxies.addProxy')} onClose={() => setShowAdd(false)}>
                     <ProxyForm groups={groups} groupId={selectedGroup !== '__all__' && selectedGroup !== '__ungrouped__' ? selectedGroup : ''} onSave={handleCreate} onClose={() => setShowAdd(false)} />
                 </Modal>
             )}
             {editing && (
-                <Modal title="Chỉnh sửa proxy" onClose={() => setEditing(null)}>
+                <Modal title={t('proxies.editProxy')} onClose={() => setEditing(null)}>
                     <ProxyForm initial={editing} groups={groups} groupId={editing.group_id} onSave={handleUpdate} onClose={() => setEditing(null)} />
                 </Modal>
             )}
             {showImport && (
-                <Modal title="Nhập hàng loạt proxy" onClose={() => { setShowImport(false); setImportText(''); setImportProgress(null); }}>
+                <Modal title={t('proxies.importProxies')} onClose={() => { setShowImport(false); setImportText(''); setImportProgress(null); }}>
                     <div className="space-y-4">
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <label className="text-xs text-slate-500 mb-1.5 block font-medium">Loại Proxy</label>
+                                <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('proxies.proxyType')}</label>
                                 <Select value={importType} onChange={e => setImportType(e.target.value)}>
                                     <option value="http">HTTP</option>
                                     <option value="https">HTTPS</option>
@@ -272,10 +275,10 @@ export default function Proxies() {
                                 </Select>
                             </div>
                             <div>
-                                <label className="text-xs text-slate-500 mb-1.5 block font-medium">Trạng thái định dạng</label>
+                                <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('proxies.initialStatus')}</label>
                                 <Select value={importStatus} onChange={e => setImportStatus(e.target.value)}>
-                                    <option value="active">Hoạt động (Active)</option>
-                                    <option value="inactive">Chờ (Inactive)</option>
+                                    <option value="active">{t('status.active')}</option>
+                                    <option value="inactive">{t('status.inactive')}</option>
                                 </Select>
                             </div>
                         </div>
@@ -283,21 +286,21 @@ export default function Proxies() {
                         <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <label className="text-xs text-slate-500 block font-medium">Danh sách Proxy *</label>
+                                    <label className="text-xs text-slate-500 block font-medium">{t('proxies.proxyList')} *</label>
                                     <p className="text-[10px] text-slate-600">
-                                        Định dạng: <code className="text-blue-400">host:port:username:password</code> (mỗi proxy một dòng)
+                                        {t('proxies.proxyFormat')}: <code className="text-blue-400">host:port:username:password</code> (mỗi proxy một dòng)
                                     </p>
                                 </div>
                                 {/* File picker + stats */}
                                 <div className="flex items-center gap-2">
                                     {importText && (() => {
                                         const count = importText.trim().split('\n').filter(Boolean).length;
-                                        return <span className="text-[10px] text-slate-500">{count.toLocaleString()} dòng</span>;
+                                        return <span className="text-[10px] text-slate-500">{count.toLocaleString()} {t('accounts.lines')}</span>;
                                     })()}
                                     <input ref={fileInputRef} type="file" accept=".txt,.csv" className="hidden" onChange={handleFileSelectProxy} />
                                     <button onClick={() => fileInputRef.current?.click()}
                                         className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-slate-400 text-[11px] hover:bg-white/10 transition-all">
-                                        <FileText size={11} /> Chọn file
+                                        <FileText size={11} /> {t('accounts.chooseFile')}
                                     </button>
                                 </div>
                             </div>
@@ -311,7 +314,7 @@ export default function Proxies() {
                             <div className="space-y-1.5">
                                 <div className="flex justify-between text-[10px] text-slate-500">
                                     <span>Batch {Math.ceil(importProgress.done / 500)}/{Math.ceil(importProgress.total / 500)}</span>
-                                    <span>{importProgress.inserted} đã nhập {importProgress.dups > 0 && `· bỏ ${importProgress.dups} trùng`}</span>
+                                    <span>{importProgress.inserted} {t('accounts.imported')}{importProgress.dups > 0 && ` · ${t('proxies.skippedDups', { count: importProgress.dups })}`}</span>
                                 </div>
                                 <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
                                     <div className="h-full bg-blue-500 rounded-full transition-all duration-300"
@@ -321,9 +324,9 @@ export default function Proxies() {
                         )}
 
                         <div className="flex justify-end gap-2">
-                            <button onClick={() => { setShowImport(false); setImportText(''); }} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Huỷ</button>
+                            <button onClick={() => { setShowImport(false); setImportText(''); }} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">{t('common.cancel')}</button>
                             <button onClick={handleImport} disabled={importLoading || !importText.trim()} className="px-5 py-2 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-60 transition-all">
-                                {importLoading ? 'Đang nhập...' : 'Nhập proxy'}
+                                {importLoading ? t('proxies.importing') : t('proxies.importProxies')}
                             </button>
                         </div>
                     </div>
@@ -332,8 +335,8 @@ export default function Proxies() {
 
             {deleteTarget && (
                 <ConfirmModal
-                    title={`Xoá nhóm "${deleteTarget.name}"`}
-                    description="Xoá nhóm này? Proxy trong nhóm sẽ chuyển về trạng thái 'Chưa có nhóm'. Hành động không thể hoàn tác!"
+                    title={`${t('proxies.deleteGroup')}: "${deleteTarget.name}"`}
+                    description={t('proxies.deleteGroupDesc')}
                     danger
                     onConfirm={handleDeleteGroup}
                     onClose={() => setDeleteTarget(null)}
@@ -342,8 +345,8 @@ export default function Proxies() {
 
             {deleteProxyTarget && (
                 <ConfirmModal
-                    title="Xoá Proxy"
-                    description="Xoá proxy này khỏi hệ thống? Hành động không thể hoàn tác!"
+                    title={t('proxies.deleteProxy')}
+                    description={t('proxies.deleteProxyDesc')}
                     danger
                     onConfirm={() => handleDelete(deleteProxyTarget)}
                     onClose={() => setDeleteProxyTarget(null)}
@@ -352,8 +355,8 @@ export default function Proxies() {
 
             {showDeleteAll && (
                 <ConfirmModal
-                    title="Xoá tất cả Proxy"
-                    description={`Bạn có chắc chắn muốn xoá toàn bộ ${pagination.total} proxy đang hiển thị theo bộ lọc hiện tại không? Hành động này không thể hoàn tác!`}
+                    title={t('proxies.deleteAll')}
+                    description={t('proxies.deleteAllDesc', { total: pagination.total })}
                     danger
                     onConfirm={handleDeleteAll}
                     onClose={() => setShowDeleteAll(false)}
@@ -361,11 +364,11 @@ export default function Proxies() {
             )}
 
             {showAssign && (
-                <Modal title="Phân nhóm Proxy" onClose={() => setShowAssign(false)}>
+                <Modal title={t('proxies.assignGroup')} onClose={() => setShowAssign(false)}>
                     <div className="space-y-4">
-                        <p className="text-sm text-slate-400">Hiện có <span className="text-white font-medium">{ungroupedCount}</span> proxy chưa có nhóm.</p>
+                        <p className="text-sm text-slate-400">{t('proxies.ungroupedProxies', { count: ungroupedCount })}</p>
                         <div className="flex gap-2">
-                            {[{ v: 'existing', label: 'Vào nhóm có sẵn' }, { v: 'new', label: 'Tạo nhóm mới' }].map(opt => (
+                            {[{ v: 'existing', label: t('groups.existingGroup') }, { v: 'new', label: t('groups.createGroup') }].map(opt => (
                                 <button key={opt.v} onClick={() => setAssignForm(f => ({ ...f, mode: opt.v }))}
                                     className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-all
                                         ${assignForm.mode === opt.v ? 'bg-blue-600/20 border-blue-500/40 text-blue-400' : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-200'}`}>
@@ -375,24 +378,24 @@ export default function Proxies() {
                         </div>
                         {assignForm.mode === 'existing' ? (
                             <div>
-                                <label className="text-xs text-slate-500 mb-1.5 block font-medium">Chọn nhóm</label>
+                                <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('groups.selectGroup')}</label>
                                 <Select value={assignForm.group_id} onChange={e => setAssignForm(f => ({ ...f, group_id: e.target.value }))}>
-                                    <option value="">— Chọn nhóm —</option>
+                                    <option value="">{t('groups.selectGroupPlaceholder')}</option>
                                     {groups.map(g => <option key={g._id} value={g._id}>{g.name} ({g.proxy_count})</option>)}
                                 </Select>
                             </div>
                         ) : (
                             <div className="space-y-3">
                                 <div>
-                                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">Tên nhóm mới *</label>
-                                    <input value={assignForm.name} onChange={e => setAssignForm(f => ({ ...f, name: e.target.value }))} className={inputCls} placeholder="VD: Proxy Việt Nam..." />
+                                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('groups.newGroupName')} *</label>
+                                    <input value={assignForm.name} onChange={e => setAssignForm(f => ({ ...f, name: e.target.value }))} className={inputCls} placeholder={t('groups.namePlaceholder')} />
                                 </div>
                                 <div>
-                                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">Mô tả</label>
-                                    <input value={assignForm.description} onChange={e => setAssignForm(f => ({ ...f, description: e.target.value }))} className={inputCls} placeholder="Mô tả nhóm..." />
+                                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('common.description')}</label>
+                                    <input value={assignForm.description} onChange={e => setAssignForm(f => ({ ...f, description: e.target.value }))} className={inputCls} placeholder={t('groups.descriptionPlaceholder')} />
                                 </div>
                                 <div>
-                                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">Màu nhóm</label>
+                                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('groups.groupColor')}</label>
                                     <div className="flex gap-2 flex-wrap">
                                         {GROUP_COLORS.map(c => (
                                             <button key={c} type="button" onClick={() => setAssignForm(f => ({ ...f, color: c }))}
@@ -407,16 +410,16 @@ export default function Proxies() {
                         )}
                         <div>
                             <label className="text-xs text-slate-500 mb-1.5 block font-medium">
-                                Số lượng Proxy <span className="text-slate-600">(bỏ trống = tất cả)</span>
+                                {t('proxies.proxyCount')} <span className="text-slate-600">({t('proxies.emptyMeansAll')})</span>
                             </label>
                             <input type="number" value={assignForm.count} onChange={e => setAssignForm(f => ({ ...f, count: e.target.value }))}
-                                className={inputCls} placeholder={`Tối đa ${ungroupedCount}`} min="1" max={ungroupedCount} />
+                                className={inputCls} placeholder={`${t('common.max')} ${ungroupedCount}`} min="1" max={ungroupedCount} />
                         </div>
                         <div className="flex justify-end gap-2 pt-1">
-                            <button onClick={() => setShowAssign(false)} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Huỷ</button>
+                            <button onClick={() => setShowAssign(false)} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">{t('common.cancel')}</button>
                             <button onClick={confirmAssign} disabled={assignLoading}
                                 className="px-5 py-2 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-60 transition-all">
-                                {assignLoading ? 'Đang gán...' : 'Gán vào nhóm'}
+                                {assignLoading ? t('groups.assigning') : t('groups.assignToGroup')}
                             </button>
                         </div>
                     </div>
@@ -426,10 +429,10 @@ export default function Proxies() {
             {/* ── SIDEBAR ──────────────────────────────────── */}
             <aside className="w-56 flex-shrink-0 flex flex-col gap-2 sticky top-6 h-fit">
                 <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Nhóm</span>
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('groups.title')}</span>
                     <button onClick={() => setShowGroupForm(true)}
                         className="w-6 h-6 rounded-lg hover:bg-white/10 flex items-center justify-center text-slate-500 hover:text-blue-400 transition-all"
-                        title="Tạo nhóm mới">
+                        title={t('groups.createGroup')}>
                         <Plus size={14} />
                     </button>
                 </div>
@@ -437,7 +440,7 @@ export default function Proxies() {
                 <button onClick={() => setSelectedGroup('__all__')}
                     className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all text-left ${selectedGroup === '__all__' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}>
                     <Globe size={15} className="flex-shrink-0" />
-                    <span className="flex-1 truncate">Tất cả</span>
+                    <span className="flex-1 truncate">{t('common.all')}</span>
                     <span className="text-xs text-slate-500 font-medium">{pagination.total}</span>
                 </button>
 
@@ -445,12 +448,12 @@ export default function Proxies() {
                     ${selectedGroup === '__ungrouped__' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
                     onClick={() => setSelectedGroup('__ungrouped__')}>
                     <FolderOpen size={15} className="flex-shrink-0 text-slate-500" />
-                    <span className="flex-1 truncate">Chưa có nhóm</span>
+                    <span className="flex-1 truncate">{t('accounts.ungrouped')}</span>
                     <span className="text-xs text-slate-500 font-medium group-hover/ug:hidden">{ungroupedCount}</span>
                     {ungroupedCount > 0 && (
                         <button onClick={e => { e.stopPropagation(); setShowAssign(true) }}
                             className="hidden group-hover/ug:flex w-6 h-6 rounded-md hover:bg-blue-500/20 hover:text-blue-400 items-center justify-center transition-all absolute right-2"
-                            title="Phân nhóm">
+                            title={t('groups.assignToGroup')}>
                             <Plus size={11} />
                         </button>
                     )}
@@ -488,28 +491,28 @@ export default function Proxies() {
                         <div className="flex items-center gap-2">
                             {currentGroup && <span className="w-3 h-3 rounded-full" style={{ backgroundColor: currentGroup.color }} />}
                             <h2 className="text-2xl font-bold text-white">
-                                {selectedGroup === '__all__' ? 'Proxy' :
-                                    selectedGroup === '__ungrouped__' ? 'Chưa có nhóm' :
-                                        currentGroup?.name || 'Proxy'}
+                                {selectedGroup === '__all__' ? t('proxies.title') :
+                                    selectedGroup === '__ungrouped__' ? t('accounts.ungrouped') :
+                                        currentGroup?.name || t('proxies.title')}
                             </h2>
                         </div>
                         {currentGroup?.description && <p className="text-xs text-slate-500 mt-0.5">{currentGroup.description}</p>}
-                        <p className="text-sm text-slate-500 mt-0.5">Tổng: <span className="text-slate-300 font-medium">{pagination.total}</span> proxy</p>
+                        <p className="text-sm text-slate-500 mt-0.5">{t('common.total')}: <span className="text-slate-300 font-medium">{pagination.total}</span> proxy</p>
                     </div>
                     <div className="flex gap-2">
                         <button onClick={() => setShowImport(true)}
                             className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-slate-300 bg-white/5 hover:bg-white/10 border border-white/10 transition-all">
-                            <Upload size={14} /> Nhập file
+                            <Upload size={14} /> {t('common.import')}
                         </button>
                         {pagination.total > 0 && (
                             <button onClick={() => setShowDeleteAll(true)}
                                 className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/10 transition-all">
-                                <Trash2 size={14} /> Xoá tất cả
+                                <Trash2 size={14} /> {t('proxies.deleteAll')}
                             </button>
                         )}
                         <button onClick={() => setShowAdd(true)}
                             className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20 transition-all">
-                            <Plus size={14} /> Thêm proxy
+                            <Plus size={14} /> {t('proxies.addProxy')}
                         </button>
                     </div>
                 </div>
@@ -518,21 +521,21 @@ export default function Proxies() {
                 <div className="flex flex-col sm:flex-row gap-3">
                     <div className="relative flex-1">
                         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Tìm kiếm host, username..."
+                        <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('proxies.searchPlaceholder')}
                             className="w-full pl-9 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/40 transition-all" />
                     </div>
                     <Select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="min-w-[130px]">
-                        <option value="">Tất cả loại</option>
+                        <option value="">{t('proxies.allTypes')}</option>
                         <option value="http">HTTP</option>
                         <option value="https">HTTPS</option>
                         <option value="socks4">SOCKS4</option>
                         <option value="socks5">SOCKS5</option>
                     </Select>
                     <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="min-w-[160px]">
-                        <option value="">Tất cả trạng thái</option>
-                        <option value="active">Hoạt động</option>
-                        <option value="inactive">Không kích hoạt</option>
-                        <option value="dead">Đã chết</option>
+                        <option value="">{t('accounts.allStatuses')}</option>
+                        <option value="active">{t('status.active')}</option>
+                        <option value="inactive">{t('status.inactive')}</option>
+                        <option value="dead">{t('status.dead')}</option>
                     </Select>
                 </div>
 
@@ -542,7 +545,11 @@ export default function Proxies() {
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="border-b border-white/5">
-                                    {['Loại', 'Host', 'Port', 'Username', 'Nhóm', 'Trạng thái', 'Ngày tạo', 'Thao tác'].map(h => (
+                                    {[
+                                        t('proxies.type'), 'Host', 'Port', 'Username',
+                                        t('accounts.group'), t('common.status'),
+                                        t('accounts.lastUpdated'), t('common.actions'),
+                                    ].map(h => (
                                         <th key={h} className="text-left text-xs text-slate-500 font-semibold uppercase tracking-wider px-4 py-3.5">{h}</th>
                                     ))}
                                 </tr>
@@ -563,7 +570,7 @@ export default function Proxies() {
                                                 <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center">
                                                     <Globe size={20} className="text-slate-600" />
                                                 </div>
-                                                Không có proxy nào
+                                                {t('proxies.noProxies')}
                                             </div>
                                         </td>
                                     </tr>
@@ -587,7 +594,7 @@ export default function Proxies() {
                                                         : <span className="text-slate-600 text-xs">—</span>}
                                                 </td>
                                                 <td className="px-4 py-3.5"><StatusBadge status={prx.status} /></td>
-                                                <td className="px-4 py-3.5 text-slate-500 text-xs">{new Date(prx.created_at).toLocaleDateString('vi-VN')}</td>
+                                                <td className="px-4 py-3.5 text-slate-500 text-xs">{new Date(prx.created_at).toLocaleDateString()}</td>
                                                 <td className="px-4 py-3.5">
                                                     <div className="flex items-center gap-1">
                                                         <button onClick={() => setEditing(prx)}
@@ -610,7 +617,7 @@ export default function Proxies() {
 
                     {pagination.totalPages > 1 && (
                         <div className="flex items-center justify-between px-4 py-3 border-t border-white/5">
-                            <p className="text-xs text-slate-500">Trang {pagination.page} / {pagination.totalPages}</p>
+                            <p className="text-xs text-slate-500">{t('common.page')} {pagination.page} / {pagination.totalPages}</p>
                             <div className="flex gap-1">
                                 <button disabled={pagination.page <= 1} onClick={() => load(pagination.page - 1)}
                                     className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 flex items-center justify-center text-slate-400 transition-all">

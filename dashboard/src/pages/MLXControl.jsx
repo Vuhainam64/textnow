@@ -3,15 +3,17 @@ import { Folder, Monitor, Shield } from 'lucide-react'
 import GroupsTab from '../components/MLX/GroupsTab'
 import ProfilesTab from '../components/MLX/ProfilesTab'
 import LocalProfilesTab from '../components/MLX/LocalProfilesTab'
-
-const TABS = [
-    { id: 'groups', label: 'Groups', icon: Folder },
-    { id: 'profiles', label: 'Profiles', icon: Monitor },
-    { id: 'local', label: 'Local Storage', icon: Shield },
-]
+import { useT } from '../lib/i18n'
 
 export default function MLXControl() {
+    const t = useT()
     const [activeTab, setActiveTab] = useState('groups')
+
+    const TABS = [
+        { id: 'groups', label: t('mlx.groups'), icon: Folder },
+        { id: 'profiles', label: t('mlx.profiles'), icon: Monitor },
+        { id: 'local', label: t('mlx.localStorage'), icon: Shield },
+    ]
 
     let Tab;
     if (activeTab === 'groups') Tab = GroupsTab;
@@ -29,7 +31,7 @@ export default function MLXControl() {
                         </div>
                         <h2 className="text-2xl font-bold text-white">MLX Control</h2>
                     </div>
-                    <p className="text-sm text-slate-500">Quản lý Groups và Profiles trên Multilogin X</p>
+                    <p className="text-sm text-slate-500">{t('mlx.subtitle')}</p>
                 </div>
 
                 {/* MLX badge */}
