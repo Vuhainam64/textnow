@@ -175,6 +175,7 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
 
     const [accountGroups, setAccountGroups] = useState([]);
     const [proxyGroups, setProxyGroups] = useState([]);
+    const [statusCounts, setStatusCounts] = useState({});  // { active: 5, inactive: 3, ... }
 
     const reactFlowWrapper = useRef(null);
     const logContainerRef = useRef(null);
@@ -249,6 +250,24 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
         };
         load();
     }, []);
+
+    // Fetch account stats khi run modal mo va group thay doi
+    useEffect(() => {
+        if (!showRunModal || !runConfig.account_group_id) {
+            setStatusCounts({});
+            return;
+        }
+        const fetchStats = async () => {
+            try {
+                const res = await AccountsService.getStats({ group_id: runConfig.account_group_id });
+                const raw = res.data?.data?.stats || [];
+                const map = {};
+                raw.forEach(s => { map[s._id] = s.count; });
+                setStatusCounts(map);
+            } catch { /* bo qua loi */ }
+        };
+        fetchStats();
+    }, [showRunModal, runConfig.account_group_id]);
 
     // ── Phát hiện execution đang chạy khi reload/F5 ──────────────────────────
     useEffect(() => {
@@ -1080,6 +1099,10 @@ function WorkflowEditorInternal({ workflow, onBack, onUpdate }) {
                                                     }`}
                                             >
                                                 {statusInfo?.label || s}
+                                                {statusCounts[s] !== undefined && (
+                                                    <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${checked ? 'bg-black/20' : 'bg-white/10'
+                                                        }`}>{statusCounts[s]}</span>
+                                                )}
                                             </button>
                                         );
                                     })}
