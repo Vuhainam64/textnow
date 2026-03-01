@@ -100,6 +100,8 @@ export default function Accounts() {
     const [selectedGroup, setSelectedGroup] = useState('__all__')
     const [showGroupForm, setShowGroupForm] = useState(false)
     const [editingGroup, setEditingGroup] = useState(null)
+    const [groupSearch, setGroupSearch] = useState('')       // tìm nhóm theo tên
+    const [labelFilter, setLabelFilter] = useState(null)    // lọc theo label text
     // Modal: xóa nhóm
     const [deleteGroupTarget, setDeleteGroupTarget] = useState(null)
     const [deleteGroupMode, setDeleteGroupMode] = useState('ungroup') // 'ungroup' | 'delete'
@@ -549,47 +551,96 @@ export default function Accounts() {
 
                 {groups.length > 0 && <div className="border-t border-white/5 my-1" />}
 
-                {groups.map(g => (
-                    <div key={g._id} className={`group/item relative flex flex-col px-3 py-2 rounded-xl text-sm transition-all cursor-pointer
-                        ${selectedGroup === g._id ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
-                        onClick={() => setSelectedGroup(g._id)}>
-                        {/* Row: dot + name + count/actions */}
-                        <div className="flex items-center gap-2.5">
-                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: g.color }} />
-                            <span className="flex-1 truncate text-sm">{g.name}</span>
-                            <span className="text-xs text-slate-500 font-medium group-hover/item:hidden">{g.account_count}</span>
-                            <div className="hidden group-hover/item:flex items-center gap-0.5 absolute right-2 top-2">
-                                <button onClick={e => { e.stopPropagation(); setEditingGroup(g) }}
-                                    className="w-6 h-6 rounded-md hover:bg-blue-500/20 hover:text-blue-400 flex items-center justify-center transition-all" title="Sửa nhóm">
-                                    <Pencil size={11} />
-                                </button>
-                                <button onClick={e => { e.stopPropagation(); setClearMembersTarget(g) }}
-                                    className="w-6 h-6 rounded-md hover:bg-orange-500/20 hover:text-orange-400 flex items-center justify-center transition-all" title="Xóa toàn bộ tài khoản">
-                                    <Trash2 size={11} />
-                                </button>
-                                <button onClick={e => { e.stopPropagation(); setDeleteGroupMode('ungroup'); setDeleteGroupTarget(g) }}
-                                    className="w-6 h-6 rounded-md hover:bg-red-500/20 hover:text-red-400 flex items-center justify-center transition-all" title="Xóa nhóm">
-                                    <X size={11} />
-                                </button>
-                            </div>
-                        </div>
-                        {/* Labels */}
-                        {g.labels?.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1 ml-5">
-                                {g.labels.map((lbl, i) => {
-                                    const text = typeof lbl === 'string' ? lbl : lbl.text
-                                    const color = typeof lbl === 'string' ? '#64748b' : (lbl.color || '#64748b')
-                                    return (
-                                        <span key={i} className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide"
-                                            style={{ backgroundColor: color + '22', border: `1px solid ${color}55`, color }}>
-                                            {text}
-                                        </span>
-                                    )
-                                })}
-                            </div>
-                        )}
+                {/* Search nhóm */}
+                {groups.length > 3 && (
+                    <div className="relative">
+                        <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-600" />
+                        <input
+                            value={groupSearch}
+                            onChange={e => setGroupSearch(e.target.value)}
+                            placeholder="Tìm nhóm..."
+                            className="w-full bg-white/5 border border-white/8 rounded-lg pl-7 pr-2.5 py-1.5 text-[11px] text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-white/20 transition-all"
+                        />
                     </div>
-                ))}
+                )}
+
+                {/* Label filter chips */}
+                {(() => {
+                    const allLabels = []
+                    groups.forEach(g => {
+                        (g.labels || []).forEach(l => {
+                            const text = typeof l === 'string' ? l : l.text
+                            const color = typeof l === 'string' ? '#64748b' : (l.color || '#64748b')
+                            if (!allLabels.find(x => x.text === text)) allLabels.push({ text, color })
+                        })
+                    })
+                    if (!allLabels.length) return null
+                    return (
+                        <div className="flex flex-wrap gap-1">
+                            {allLabels.map(lbl => {
+                                const active = labelFilter === lbl.text
+                                return (
+                                    <button key={lbl.text} type="button"
+                                        onClick={() => setLabelFilter(active ? null : lbl.text)}
+                                        className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide transition-all"
+                                        style={active
+                                            ? { backgroundColor: lbl.color + '33', border: `1px solid ${lbl.color}99`, color: lbl.color }
+                                            : { backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: '#64748b' }
+                                        }>
+                                        {lbl.text}
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    )
+                })()}
+
+                {(() => {
+                    let list = groups
+                    if (groupSearch.trim()) list = list.filter(g => g.name.toLowerCase().includes(groupSearch.toLowerCase()))
+                    if (labelFilter) list = list.filter(g => (g.labels || []).some(l => (typeof l === 'string' ? l : l.text) === labelFilter))
+                    return list.map(g => (
+                        <div key={g._id} className={`group/item relative flex flex-col px-3 py-2 rounded-xl text-sm transition-all cursor-pointer
+                        ${selectedGroup === g._id ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
+                            onClick={() => setSelectedGroup(g._id)}>
+                            {/* Row: dot + name + count/actions */}
+                            <div className="flex items-center gap-2.5">
+                                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: g.color }} />
+                                <span className="flex-1 truncate text-sm">{g.name}</span>
+                                <span className="text-xs text-slate-500 font-medium group-hover/item:hidden">{g.account_count}</span>
+                                <div className="hidden group-hover/item:flex items-center gap-0.5 absolute right-2 top-2">
+                                    <button onClick={e => { e.stopPropagation(); setEditingGroup(g) }}
+                                        className="w-6 h-6 rounded-md hover:bg-blue-500/20 hover:text-blue-400 flex items-center justify-center transition-all" title="Sửa nhóm">
+                                        <Pencil size={11} />
+                                    </button>
+                                    <button onClick={e => { e.stopPropagation(); setClearMembersTarget(g) }}
+                                        className="w-6 h-6 rounded-md hover:bg-orange-500/20 hover:text-orange-400 flex items-center justify-center transition-all" title="Xóa toàn bộ tài khoản">
+                                        <Trash2 size={11} />
+                                    </button>
+                                    <button onClick={e => { e.stopPropagation(); setDeleteGroupMode('ungroup'); setDeleteGroupTarget(g) }}
+                                        className="w-6 h-6 rounded-md hover:bg-red-500/20 hover:text-red-400 flex items-center justify-center transition-all" title="Xóa nhóm">
+                                        <X size={11} />
+                                    </button>
+                                </div>
+                            </div>
+                            {/* Labels */}
+                            {g.labels?.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1 ml-5">
+                                    {g.labels.map((lbl, i) => {
+                                        const text = typeof lbl === 'string' ? lbl : lbl.text
+                                        const color = typeof lbl === 'string' ? '#64748b' : (lbl.color || '#64748b')
+                                        return (
+                                            <span key={i} className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide"
+                                                style={{ backgroundColor: color + '22', border: `1px solid ${color}55`, color }}>
+                                                {text}
+                                            </span>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    ))
+                })()}
             </aside>
 
             {/* ── MAIN CONTENT ─────────────────────────────── */}
