@@ -46,7 +46,7 @@ const en = {
 
     // ── Navigation ───────────────────────────────────────────────────
     nav: {
-        dashboard: 'Dashboard',
+        dashboard: 'Overview',
         accounts: 'Accounts',
         proxies: 'Proxies',
         workflow: 'Automation',
@@ -54,6 +54,13 @@ const en = {
         history: 'History',
         mlx: 'MLX Control',
         settings: 'Settings',
+        navigation: 'Navigation',
+        collapse: 'Collapse',
+        expand: 'Expand',
+        agentConnected: 'MLX Agent: Connected',
+        agentDisconnected: 'MLX Agent: Disconnected',
+        connectAgent: 'Connect Agent',
+        systemTitle: 'Account Management System',
     },
 
     // ── Status ───────────────────────────────────────────────────────
@@ -65,8 +72,9 @@ const en = {
         captcha: 'Captcha Error',
         no_mail: 'No Mail',
         die_mail: 'Dead Mail',
-        'Reset Error': 'Reset Error',
+        reset_error: 'Reset Error',
         verified: 'Verified',
+        dead: 'Dead',
     },
 
     // ── Dashboard ────────────────────────────────────────────────────

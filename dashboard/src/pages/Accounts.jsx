@@ -13,10 +13,12 @@ import ConfirmModal from '../components/MLX/ConfirmModal'
 import { showToast } from '../components/Toast'
 import AccountImportModal from './Accounts/ImportModal'
 import AccountExportModal from './Accounts/ExportModal'
+import { useT } from '../lib/i18n'
 
 
 // ─── Account Form ─────────────────────────────────────────────────────────────
 function AccountForm({ initial, groups, groupId, onSave, onClose }) {
+    const t = useT()
     const [form, setForm] = useState(initial || {
         textnow_user: '', textnow_pass: '',
         hotmail_user: '', hotmail_pass: '',
@@ -39,53 +41,53 @@ function AccountForm({ initial, groups, groupId, onSave, onClose }) {
             {error && <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-xl p-3">{error}</div>}
             <div className="grid grid-cols-2 gap-3">
                 <div>
-                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">TextNow User *</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('accounts.textnowUser')} *</label>
                     <input required value={form.textnow_user} onChange={h('textnow_user')} className={inputCls} placeholder="username" />
                 </div>
                 <div>
-                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">TextNow Pass *</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('accounts.textnowPass')} *</label>
                     <input required type="text" value={form.textnow_pass} onChange={h('textnow_pass')} className={inputCls} placeholder="password" />
                 </div>
                 <div>
-                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">Hotmail User</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('accounts.hotmailUser')}</label>
                     <input value={form.hotmail_user} onChange={h('hotmail_user')} className={inputCls} placeholder="email@hotmail.com" />
                 </div>
                 <div>
-                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">Hotmail Pass</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('accounts.hotmailPass')}</label>
                     <input type="text" value={form.hotmail_pass} onChange={h('hotmail_pass')} className={inputCls} placeholder="password" />
                 </div>
                 <div className="col-span-2">
-                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">Hotmail Token</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('accounts.hotmailToken')}</label>
                     <input value={form.hotmail_token} onChange={h('hotmail_token')} className={inputCls} placeholder="OAuth token" />
                 </div>
                 <div className="col-span-2">
-                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">Hotmail Client ID</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('accounts.hotmailClientId')}</label>
                     <input value={form.hotmail_client_id} onChange={h('hotmail_client_id')} className={inputCls} placeholder="dbc8e03a-b00c-..." />
                 </div>
                 <div>
-                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">Trạng thái</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('common.status')}</label>
                     <Select value={form.status} onChange={h('status')}>
-                        <option value="pending">Chờ xử lý</option>
-                        <option value="active">Hoạt động</option>
-                        <option value="inactive">Không kích hoạt</option>
-                        <option value="banned">Bị khoá</option>
-                        <option value="die_mail">Die Mail</option>
-                        <option value="no_mail">No Mail</option>
-                        <option value="Reset Error">Lỗi Reset</option>
+                        <option value="pending">{t('status.pending')}</option>
+                        <option value="active">{t('status.active')}</option>
+                        <option value="inactive">{t('status.inactive')}</option>
+                        <option value="banned">{t('status.banned')}</option>
+                        <option value="die_mail">{t('status.die_mail')}</option>
+                        <option value="no_mail">{t('status.no_mail')}</option>
+                        <option value="Reset Error">{t('status.reset_error')}</option>
                     </Select>
                 </div>
                 <div>
-                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">Nhóm</label>
+                    <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('accounts.group')}</label>
                     <Select value={form.group_id || ''} onChange={h('group_id')}>
-                        <option value="">— Không có nhóm —</option>
+                        <option value="">{t('accounts.noGroup')}</option>
                         {groups.map(g => <option key={g._id} value={g._id}>{g.name}</option>)}
                     </Select>
                 </div>
             </div>
             <div className="flex justify-end gap-2 pt-1">
-                <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Huỷ</button>
+                <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">{t('common.cancel')}</button>
                 <button type="submit" disabled={loading} className="px-5 py-2 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20 disabled:opacity-60 transition-all">
-                    {loading ? 'Đang lưu...' : 'Lưu tài khoản'}
+                    {loading ? t('common.saving') : t('common.save')}
                 </button>
             </div>
         </form>
@@ -94,6 +96,7 @@ function AccountForm({ initial, groups, groupId, onSave, onClose }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Accounts() {
+    const t = useT()
     // Groups state
     const [groups, setGroups] = useState([])
     const [ungroupedCount, setUngroupedCount] = useState(0)
@@ -520,9 +523,9 @@ export default function Accounts() {
             {/* ── SIDEBAR ──────────────────────────────────── */}
             <aside className="w-56 flex-shrink-0 flex flex-col gap-2 sticky top-6 h-fit">
                 <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Nhóm</span>
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('groups.title')}</span>
                     <button onClick={() => setShowGroupForm(true)}
-                        className="w-6 h-6 rounded-lg hover:bg-white/10 flex items-center justify-center text-slate-500 hover:text-blue-400 transition-all" title="Tạo nhóm mới">
+                        className="w-6 h-6 rounded-lg hover:bg-white/10 flex items-center justify-center text-slate-500 hover:text-blue-400 transition-all" title={t('groups.createGroup')}>
                         <Plus size={14} />
                     </button>
                 </div>
@@ -530,7 +533,7 @@ export default function Accounts() {
                 <button onClick={() => setSelectedGroup('__all__')}
                     className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all text-left ${selectedGroup === '__all__' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}>
                     <Users size={15} className="flex-shrink-0" />
-                    <span className="flex-1 truncate">Tất cả</span>
+                    <span className="flex-1 truncate">{t('common.all')}</span>
                     <span className="text-xs text-slate-500 font-medium">{pagination.total}</span>
                 </button>
 
@@ -538,12 +541,12 @@ export default function Accounts() {
                     ${selectedGroup === '__ungrouped__' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
                     onClick={() => setSelectedGroup('__ungrouped__')}>
                     <FolderOpen size={15} className="flex-shrink-0 text-slate-500" />
-                    <span className="flex-1 truncate">Chưa có nhóm</span>
+                    <span className="flex-1 truncate">{t('accounts.ungrouped')}</span>
                     <span className="text-xs text-slate-500 font-medium group-hover/ug:hidden">{ungroupedCount}</span>
                     {ungroupedCount > 0 && (
                         <button onClick={e => { e.stopPropagation(); setShowAssign(true) }}
                             className="hidden group-hover/ug:flex w-6 h-6 rounded-md hover:bg-blue-500/20 hover:text-blue-400 items-center justify-center transition-all absolute right-2"
-                            title="Phân nhóm">
+                            title={t('groups.assignToGroup')}>
                             <Plus size={11} />
                         </button>
                     )}
@@ -558,7 +561,7 @@ export default function Accounts() {
                         <input
                             value={groupSearch}
                             onChange={e => setGroupSearch(e.target.value)}
-                            placeholder="Tìm nhóm..."
+                            placeholder={t('groups.searchGroups')}
                             className="w-full bg-white/5 border border-white/8 rounded-lg pl-7 pr-2.5 py-1.5 text-[11px] text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-white/20 transition-all"
                         />
                     </div>
@@ -650,30 +653,30 @@ export default function Accounts() {
                         <div className="flex items-center gap-2">
                             {currentGroup && <span className="w-3 h-3 rounded-full" style={{ backgroundColor: groupColor }} />}
                             <h2 className="text-2xl font-bold text-white">
-                                {selectedGroup === '__all__' ? 'Tài khoản' : selectedGroup === '__ungrouped__' ? 'Chưa có nhóm' : currentGroup?.name || 'Tài khoản'}
+                                {selectedGroup === '__all__' ? t('accounts.title') : selectedGroup === '__ungrouped__' ? t('accounts.ungrouped') : currentGroup?.name || t('accounts.title')}
                             </h2>
                         </div>
                         {currentGroup?.description && <p className="text-xs text-slate-500 mt-0.5">{currentGroup.description}</p>}
-                        <p className="text-sm text-slate-500 mt-0.5">Tổng: <span className="text-slate-300 font-medium">{pagination.total}</span> tài khoản</p>
+                        <p className="text-sm text-slate-500 mt-0.5">{t('common.total')}: <span className="text-slate-300 font-medium">{pagination.total}</span> {t('accounts.title').toLowerCase()}</p>
                     </div>
                     <div className="flex gap-2">
                         {pagination.total > 0 && (
                             <button onClick={() => setShowDeleteAll(true)}
                                 className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/10 transition-all">
-                                <Trash2 size={14} /> Xoá tất cả
+                                <Trash2 size={14} /> {t('accounts.deleteAll')}
                             </button>
                         )}
                         <button onClick={() => { setShowExport(true); setExportStatus([]); setExportDeleteAfter(false); }}
                             className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/10 transition-all">
-                            <Download size={14} /> Xuất
+                            <Download size={14} /> {t('common.export')}
                         </button>
                         <button onClick={() => setShowImport(true)}
                             className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-slate-300 bg-white/5 hover:bg-white/10 border border-white/10 transition-all">
-                            <Upload size={14} /> Nhập file
+                            <Upload size={14} /> {t('common.import')}
                         </button>
                         <button onClick={() => setShowAdd(true)}
                             className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20 transition-all">
-                            <Plus size={14} /> Thêm tài khoản
+                            <Plus size={14} /> {t('accounts.addAccount')}
                         </button>
                     </div>
                 </div>

@@ -46,7 +46,7 @@ const vi = {
 
     // ── Navigation ───────────────────────────────────────────────────
     nav: {
-        dashboard: 'Bảng điều khiển',
+        dashboard: 'Tổng quan',
         accounts: 'Tài khoản',
         proxies: 'Proxy',
         workflow: 'Tự động hóa',
@@ -54,6 +54,13 @@ const vi = {
         history: 'Lịch sử',
         mlx: 'MLX Control',
         settings: 'Cài đặt',
+        navigation: 'Điều hướng',
+        collapse: 'Thu gọn',
+        expand: 'Mở rộng',
+        agentConnected: 'MLX Agent: Đã kết nối',
+        agentDisconnected: 'MLX Agent: Chưa kết nối',
+        connectAgent: 'Kết nối Agent',
+        systemTitle: 'Hệ thống quản lý tài khoản',
     },
 
     // ── Status ───────────────────────────────────────────────────────
@@ -65,8 +72,9 @@ const vi = {
         captcha: 'Lỗi Captcha',
         no_mail: 'No Mail',
         die_mail: 'Die Mail',
-        'Reset Error': 'Lỗi Reset',
+        reset_error: 'Lỗi Reset',
         verified: 'Đã xác thực',
+        dead: 'Đã chết',
     },
 
     // ── Dashboard ────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Check, Plus, X } from 'lucide-react'
 import { GROUP_COLORS, inputCls } from '../lib/ui'
+import { useT } from '../lib/i18n'
 
 // Preset labels với màu mặc định
 const PRESET_LABELS = [
@@ -70,6 +71,7 @@ function LabelBadge({ label, onRemove, onColorChange }) {
 }
 
 export default function GroupForm({ initial, onSave, onClose }) {
+    const t = useT()
     const [form, setForm] = useState({
         name: initial?.name || '',
         description: initial?.description || '',
@@ -115,7 +117,7 @@ export default function GroupForm({ initial, onSave, onClose }) {
 
     const submit = async (e) => {
         e.preventDefault()
-        if (!form.name.trim()) { setError('Tên nhóm là bắt buộc'); return }
+        if (!form.name.trim()) { setError(t('groups.groupName') + ' ' + t('common.error').toLowerCase()); return }
         setLoading(true)
         try { await onSave(form); onClose() }
         catch (err) { setError(err.message) }
@@ -129,18 +131,18 @@ export default function GroupForm({ initial, onSave, onClose }) {
             {error && <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-xl p-3">{error}</div>}
 
             <div>
-                <label className="text-xs text-slate-500 mb-1.5 block font-medium">Tên nhóm *</label>
-                <input autoFocus value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} placeholder="VD: T1, Spam, VN..." />
+                <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('groups.groupName')} *</label>
+                <input autoFocus value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} placeholder={t('groups.namePlaceholder')} />
             </div>
 
             <div>
-                <label className="text-xs text-slate-500 mb-1.5 block font-medium">Mô tả</label>
-                <textarea rows={2} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className={`${inputCls} resize-none`} placeholder="Mô tả mục đích của nhóm..." />
+                <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('common.description')}</label>
+                <textarea rows={2} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className={`${inputCls} resize-none`} placeholder={t('groups.descriptionPlaceholder')} />
             </div>
 
             {/* Label Section */}
             <div>
-                <label className="text-xs text-slate-500 mb-2 block font-medium">Nhãn mục đích</label>
+                <label className="text-xs text-slate-500 mb-2 block font-medium">{t('groups.groupLabel')}</label>
 
                 {/* Preset labels */}
                 <div className="flex flex-wrap gap-1.5 mb-2">
@@ -186,7 +188,7 @@ export default function GroupForm({ initial, onSave, onClose }) {
                         onChange={e => setCustomInput(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addCustomLabel())}
                         className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 transition-all uppercase"
-                        placeholder="Thêm nhãn tùy chỉnh..."
+                        placeholder={t('groups.customLabel')}
                     />
                     <button type="button" onClick={addCustomLabel}
                         className="px-2.5 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 transition-all">
@@ -202,7 +204,7 @@ export default function GroupForm({ initial, onSave, onClose }) {
 
             {/* Màu nhóm */}
             <div>
-                <label className="text-xs text-slate-500 mb-1.5 block font-medium">Màu nhóm</label>
+                <label className="text-xs text-slate-500 mb-1.5 block font-medium">{t('groups.groupColor')}</label>
                 <div className="flex gap-2 flex-wrap">
                     {GROUP_COLORS.map(c => (
                         <button key={c} type="button" onClick={() => setForm(f => ({ ...f, color: c }))}
@@ -220,9 +222,9 @@ export default function GroupForm({ initial, onSave, onClose }) {
             </div>
 
             <div className="flex justify-end gap-2 pt-1">
-                <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">Huỷ</button>
+                <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">{t('common.cancel')}</button>
                 <button type="submit" disabled={loading} className="px-5 py-2 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-60 transition-all">
-                    {loading ? 'Đang lưu...' : initial ? 'Lưu thay đổi' : 'Tạo nhóm'}
+                    {loading ? t('common.saving') : initial ? t('common.save') : t('groups.createGroup')}
                 </button>
             </div>
         </form>
